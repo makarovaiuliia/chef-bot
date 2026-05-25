@@ -93,10 +93,12 @@ chef-bot/
 
 ### Task 0.1: Create `pyproject.toml` with dependencies
 
+> **Status:** ✅ DONE (2026-05-25, commits fdc66d2 + b97cbeb). `[build-system]` section was added during code-quality review.
+
 **Files:**
 - Create: `pyproject.toml`
 
-- [ ] **Step 1: Write `pyproject.toml`**
+- [x] **Step 1: Write `pyproject.toml`**
 
 ```toml
 [project]
@@ -135,12 +137,12 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 ```
 
-- [ ] **Step 2: Install dependencies**
+- [x] **Step 2: Install dependencies**
 
 Run: `python3.12 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`
 Expected: All deps install successfully.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add pyproject.toml
@@ -151,11 +153,13 @@ git commit -m "chore: add pyproject.toml with project deps"
 
 ### Task 0.2: Create `.gitignore` and `.env.example`
 
+> **Status:** ✅ DONE (2026-05-25). Pure paste task done inline (no subagent).
+
 **Files:**
 - Create: `.gitignore`
 - Create: `.env.example`
 
-- [ ] **Step 1: Write `.gitignore`**
+- [x] **Step 1: Write `.gitignore`**
 
 ```gitignore
 # Python
@@ -183,7 +187,7 @@ data/
 .DS_Store
 ```
 
-- [ ] **Step 2: Write `.env.example`**
+- [x] **Step 2: Write `.env.example`**
 
 ```bash
 # Telegram Bot
@@ -204,7 +208,7 @@ LOG_LEVEL=INFO
 CLAUDE_MODEL=claude-sonnet-4-6
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .gitignore .env.example
