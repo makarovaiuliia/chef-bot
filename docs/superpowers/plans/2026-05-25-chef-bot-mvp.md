@@ -1230,10 +1230,12 @@ git commit -m "feat(models): add Pydantic domain DTOs"
 
 ### Task 1.3: Write `core/prompts/base_context.md`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/prompts/base_context.md`
 
-- [ ] **Step 1: Write the base context**
+- [x] **Step 1: Write the base context**
 
 This is the full user context that will be the first cached `system` block for every LLM call. Copy verbatim from the design spec / business requirements (section "Пользовательский контекст"):
 
@@ -1307,7 +1309,7 @@ This is the full user context that will be the first cached `system` block for e
 - При генерации меню или рецепта используй заданный JSON-формат строго.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/prompts/base_context.md
