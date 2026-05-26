@@ -591,6 +591,8 @@ git commit -m "feat(core): add custom exception types"
 
 ### Task 0.8: Add `core/services/family_service.py` (TDD)
 
+> **Status:** ✅ DONE (2026-05-26). 4/4 tests pass. Dropped manual `event_loop` fixture (pytest-asyncio auto mode handles it); dropped `@pytest.mark.asyncio` decorators (redundant under auto mode).
+
 **Files:**
 - Create: `core/services/__init__.py` (empty)
 - Create: `core/services/family_service.py`
@@ -598,7 +600,7 @@ git commit -m "feat(core): add custom exception types"
 - Modify: `tests/conftest.py` — add async DB fixture
 - Create: `tests/integration/__init__.py` (empty)
 
-- [ ] **Step 1: Write `tests/conftest.py` with async DB fixtures**
+- [x] **Step 1: Write `tests/conftest.py` with async DB fixtures**
 
 ```python
 # tests/conftest.py
@@ -636,7 +638,7 @@ async def db_session():
     await engine.dispose()
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 ```python
 # tests/integration/test_family_service.py
@@ -686,12 +688,12 @@ async def test_get_or_create_family_returns_existing(db_session):
     assert m1.id == m2.id
 ```
 
-- [ ] **Step 3: Run test, verify it fails**
+- [x] **Step 3: Run test, verify it fails**
 
 Run: `pytest tests/integration/test_family_service.py -v`
 Expected: FAIL (ImportError)
 
-- [ ] **Step 4: Implement `core/services/family_service.py`**
+- [x] **Step 4: Implement `core/services/family_service.py`**
 
 ```python
 # core/services/family_service.py
@@ -742,12 +744,12 @@ async def get_or_create_family(
     return family, member
 ```
 
-- [ ] **Step 5: Run test, verify it passes**
+- [x] **Step 5: Run test, verify it passes**
 
 Run: `pytest tests/integration/test_family_service.py -v`
 Expected: PASS (4/4)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add core/services/ tests/conftest.py tests/integration/
