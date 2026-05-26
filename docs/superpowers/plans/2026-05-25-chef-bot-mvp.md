@@ -3076,12 +3076,14 @@ git commit -m "feat(bot): trigger shopping-list build on menu approval"
 
 ### Task 2.5: Implement `/list` handler with inline checkboxes
 
+> **Status:** ✅ DONE (2026-05-26). 16/16 tests pass. The plan's `_find_item_anywhere` helper was inlined as a direct `repositories.get_shopping_item` call — the indirection didn't earn its keep. **Phase 2 complete.**
+
 **Files:**
 - Create: `bot/handlers/shopping.py`
 - Modify: `bot/keyboards.py` — add `kb_shopping_list`
 - Modify: `bot/main.py` — register router
 
-- [ ] **Step 1: Append to `bot/keyboards.py`**
+- [x] **Step 1: Append to `bot/keyboards.py`**
 
 ```python
 def kb_shopping_list(items) -> InlineKeyboardMarkup:
@@ -3106,7 +3108,7 @@ STORE_LABELS = {
 }
 ```
 
-- [ ] **Step 2: Write `bot/handlers/shopping.py`**
+- [x] **Step 2: Write `bot/handlers/shopping.py`**
 
 ```python
 # bot/handlers/shopping.py
@@ -3186,18 +3188,18 @@ async def _find_item_anywhere(db_session: AsyncSession, item_id: int):
     return await repositories.get_shopping_item(db_session, item_id)
 ```
 
-- [ ] **Step 3: Register in `bot/main.py`**
+- [x] **Step 3: Register in `bot/main.py`**
 
 ```python
 from bot.handlers import shopping as shopping_handler
 dp.include_router(shopping_handler.router)
 ```
 
-- [ ] **Step 4: Manual smoke test**
+- [ ] **Step 4: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Run `/plan` → approve → `/list`. Expected: messages grouped by store, each item is a button. Tap an item — its label changes to "✅".
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add bot/handlers/shopping.py bot/keyboards.py bot/main.py

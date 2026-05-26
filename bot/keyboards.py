@@ -25,3 +25,25 @@ def kb_meals_for_replace(meals) -> InlineKeyboardMarkup:
         b.button(text=label, callback_data=f"plan:replace_meal:{m.id}")
     b.adjust(1)
     return b.as_markup()
+
+
+def kb_shopping_list(items) -> InlineKeyboardMarkup:
+    """One button per item; label shows checkbox state."""
+    b = InlineKeyboardBuilder()
+    for item in items:
+        mark = "✅" if item.bought else "☐"
+        label = f"{mark} {item.name}"
+        if item.quantity:
+            label += f" — {item.quantity}"
+        b.button(text=label, callback_data=f"shop:toggle:{item.id}")
+    b.adjust(1)
+    return b.as_markup()
+
+
+STORE_LABELS = {
+    "makro": "🟧 Makro",
+    "villa": "🟦 Villa Market",
+    "lotus": "🟩 Lotus's",
+    "seven_eleven": "🟥 7-Eleven",
+    "other": "⚪ Прочее",
+}

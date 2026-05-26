@@ -9,6 +9,7 @@ from loguru import logger
 from bot.handlers import menu as menu_handler
 from bot.handlers import plan as plan_handler
 from bot.handlers import recipe as recipe_handler
+from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import AllowlistMiddleware, FamilyResolverMiddleware
 from config import get_settings
@@ -38,6 +39,7 @@ async def main() -> None:
     dp.include_router(plan_handler.router)
     dp.include_router(menu_handler.router)
     dp.include_router(recipe_handler.router)
+    dp.include_router(shopping_handler.router)
 
     logger.info("starting bot polling")
     await dp.start_polling(bot)
