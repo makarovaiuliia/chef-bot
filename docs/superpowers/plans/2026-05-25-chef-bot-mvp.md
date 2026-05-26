@@ -1502,10 +1502,12 @@ git commit -m "feat(llm): add Anthropic client wrapper with prompt loader"
 
 ### Task 1.5: Write `core/prompts/menu_planner.md`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/prompts/menu_planner.md`
 
-- [ ] **Step 1: Write the menu-planner prompt**
+- [x] **Step 1: Write the menu-planner prompt**
 
 ```markdown
 # Задача: генерация меню
@@ -1550,7 +1552,7 @@ git commit -m "feat(llm): add Anthropic client wrapper with prompt loader"
 - Никаких пояснений до или после JSON. Только JSON.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/prompts/menu_planner.md
