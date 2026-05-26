@@ -381,10 +381,12 @@ git commit -m "feat(db): add SQLAlchemy base and session factory"
 
 ### Task 0.5: Add `families` and `family_members` ORM models
 
+> **Status:** ✅ DONE (2026-05-26). Imports consolidated at top of file (instead of literal append) to keep ruff `I` happy.
+
 **Files:**
 - Modify: `core/db.py` — append ORM models
 
-- [ ] **Step 1: Append ORM models to `core/db.py`**
+- [x] **Step 1: Append ORM models to `core/db.py`**
 
 Append at end of file:
 
@@ -417,7 +419,7 @@ class FamilyMember(Base):
     family: Mapped["Family"] = relationship(back_populates="members")
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/db.py

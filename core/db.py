@@ -3,14 +3,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, String, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from config import get_settings
 
@@ -23,6 +23,30 @@ CreatedAt = Annotated[
     datetime,
     mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False),
 ]
+
+
+class Family(Base):
+    __tablename__ = "families"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[CreatedAt]
+
+    members: Mapped[list["FamilyMember"]] = relationship(
+        back_populates="family", cascade="all, delete-orphan"
+    )
+
+
+class FamilyMember(Base):
+    __tablename__ = "family_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[CreatedAt]
+
+    family: Mapped["Family"] = relationship(back_populates="members")
 
 
 _engine: AsyncEngine | None = None
