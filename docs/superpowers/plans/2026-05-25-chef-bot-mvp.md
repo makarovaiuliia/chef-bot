@@ -430,18 +430,20 @@ git commit -m "feat(db): add families and family_members ORM models"
 
 ### Task 0.6: Initialize Alembic and create first migration
 
+> **Status:** ✅ DONE (2026-05-26). Migration applied to `data/chef.db`; `.tables` shows `alembic_version`, `families`, `family_members`. Migration revision renamed to `0001_init` for readability.
+
 **Files:**
 - Create: `alembic.ini`
 - Create: `alembic/env.py`
 - Create: `alembic/script.py.mako`
 - Create: `alembic/versions/` (directory)
 
-- [ ] **Step 1: Run alembic init**
+- [x] **Step 1: Run alembic init**
 
 Run: `alembic init -t async alembic`
 Expected: Alembic creates `alembic/`, `alembic.ini`, etc.
 
-- [ ] **Step 2: Edit `alembic.ini` — set sqlalchemy.url**
+- [x] **Step 2: Edit `alembic.ini` — set sqlalchemy.url**
 
 In `alembic.ini`, replace the line `sqlalchemy.url = driver://user:pass@localhost/dbname` with:
 
@@ -451,7 +453,7 @@ sqlalchemy.url =
 
 (Empty — we'll set it from env in `env.py`.)
 
-- [ ] **Step 3: Edit `alembic/env.py` — load metadata and url from project**
+- [x] **Step 3: Edit `alembic/env.py` — load metadata and url from project**
 
 Replace the auto-generated `alembic/env.py` with:
 
@@ -516,21 +518,21 @@ else:
     run_migrations_online()
 ```
 
-- [ ] **Step 4: Generate first migration**
+- [x] **Step 4: Generate first migration**
 
 Run: `mkdir -p data && BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic revision --autogenerate -m "init: families and family_members"`
 Expected: A file appears in `alembic/versions/` defining `families` and `family_members` tables.
 
 Inspect the generated migration to confirm it has both tables. Rename the file to `0001_init.py` for readability.
 
-- [ ] **Step 5: Apply migration**
+- [x] **Step 5: Apply migration**
 
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic upgrade head`
 Expected: Creates `data/chef.db` with both tables.
 
 Verify: `sqlite3 data/chef.db ".tables"` should list `alembic_version`, `families`, `family_members`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add alembic.ini alembic/
