@@ -3606,10 +3606,12 @@ git commit -m "feat(tools): add tool schemas and dispatcher for conversation age
 
 ### Task 3.3: Write `core/prompts/conversation.md`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/prompts/conversation.md`
 
-- [ ] **Step 1: Write prompt**
+- [x] **Step 1: Write prompt**
 
 ```markdown
 # Задача: ассистент в диалоге
@@ -3637,7 +3639,7 @@ git commit -m "feat(tools): add tool schemas and dispatcher for conversation age
   запустить /plan.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/prompts/conversation.md
