@@ -1563,10 +1563,12 @@ git commit -m "feat(prompts): add menu_planner prompt"
 
 ### Task 1.6: Implement `core/repositories.py` — menu operations
 
+> **Status:** ✅ DONE (2026-05-26). Used `datetime.now(UTC)` instead of deprecated `utcnow()`. Recipe deletion in `update_meal` uses a direct select (instead of relationship access) to avoid async lazy-load issues.
+
 **Files:**
 - Create: `core/repositories.py`
 
-- [ ] **Step 1: Write repository functions for menus**
+- [x] **Step 1: Write repository functions for menus**
 
 ```python
 # core/repositories.py
@@ -1713,7 +1715,7 @@ async def get_recipe(session: AsyncSession, meal_id: int) -> Recipe | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/repositories.py
