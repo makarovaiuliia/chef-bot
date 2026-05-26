@@ -3889,11 +3889,13 @@ git commit -m "feat(conversation): add tool-use loop for free-text dialog"
 
 ### Task 3.5: Wire free-text handler in bot
 
+> **Status:** ✅ DONE (2026-05-26). 20/20 tests pass; ruff clean; bot imports cleanly. Dropped the `message.chat.do("typing")` call (not a valid aiogram method here — typing indicator would need a separate `bot.send_chat_action`; the agent reply is fast enough that the missing indicator is fine for MVP). **🎉 Phase 3 complete — MVP DONE.**
+
 **Files:**
 - Create: `bot/handlers/freetext.py`
 - Modify: `bot/main.py` — register LAST (so command handlers take precedence)
 
-- [ ] **Step 1: Write `bot/handlers/freetext.py`**
+- [x] **Step 1: Write `bot/handlers/freetext.py`**
 
 ```python
 # bot/handlers/freetext.py
@@ -3937,7 +3939,7 @@ async def handle_free_text(
     await message.answer(reply)
 ```
 
-- [ ] **Step 2: Register LAST in `bot/main.py`**
+- [x] **Step 2: Register LAST in `bot/main.py`**
 
 After all other routers:
 
@@ -3946,7 +3948,7 @@ from bot.handlers import freetext as freetext_handler
 dp.include_router(freetext_handler.router)
 ```
 
-- [ ] **Step 3: Manual smoke test**
+- [ ] **Step 3: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Run bot. Try:
 - "что у нас в меню?" → bot replies with active menu (tool: get_active_menu)
@@ -3955,7 +3957,7 @@ Run bot. Try:
 - "добавь молоко в список" → standalone shopping item appears in /list
 - Make sure `/plan` wizard still works (FSM dialog takes precedence over free text)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add bot/handlers/freetext.py bot/main.py
