@@ -2309,11 +2309,13 @@ git commit -m "feat(bot): add /plan FSM wizard with approve and replace"
 
 ### Task 1.10: Implement `/menu` and `/today` handlers
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline; ruff clean. Step 3 (smoke test) deferred — needs real BOT_TOKEN.
+
 **Files:**
 - Create: `bot/handlers/menu.py`
 - Modify: `bot/main.py` — register router
 
-- [ ] **Step 1: Write `bot/handlers/menu.py`**
+- [x] **Step 1: Write `bot/handlers/menu.py`**
 
 ```python
 # bot/handlers/menu.py
@@ -2368,7 +2370,7 @@ async def cmd_today(
     await message.answer("\n".join(lines))
 ```
 
-- [ ] **Step 2: Register in `bot/main.py`**
+- [x] **Step 2: Register in `bot/main.py`**
 
 Add after plan router registration:
 
@@ -2377,11 +2379,11 @@ from bot.handlers import menu as menu_handler
 dp.include_router(menu_handler.router)
 ```
 
-- [ ] **Step 3: Manual smoke test**
+- [ ] **Step 3: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Run bot, send `/menu` and `/today`. Expected: shows active menu / today's meals.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add bot/handlers/menu.py bot/main.py

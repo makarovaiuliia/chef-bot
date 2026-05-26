@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from loguru import logger
 
+from bot.handlers import menu as menu_handler
 from bot.handlers import plan as plan_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import AllowlistMiddleware, FamilyResolverMiddleware
@@ -34,6 +35,7 @@ async def main() -> None:
 
     dp.include_router(start_handler.router)
     dp.include_router(plan_handler.router)
+    dp.include_router(menu_handler.router)
 
     logger.info("starting bot polling")
     await dp.start_polling(bot)
