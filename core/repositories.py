@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.db import (
+    ClaudeConversation,
     Meal,
     MealSlot,
     Menu,
     MenuStatus,
+    MessageRole,
     ProteinKind,
     Recipe,
     ShoppingItem,
@@ -200,3 +202,40 @@ async def mark_shopping_item_bought(
     item.bought_at = datetime.now(UTC) if bought else None
     await session.flush()
     return item
+
+
+async def append_conversation(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    telegram_user_id: int,
+    role: MessageRole,
+    content: str,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+) -> None:
+    session.add(
+        ClaudeConversation(
+            family_id=family_id,
+            telegram_user_id=telegram_user_id,
+            role=role,
+            content=content,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+        )
+    )
+    await session.flush()
+
+
+async def recent_conversation(
+    session: AsyncSession, *, family_id: int, limit: int = 20
+) -> list[ClaudeConversation]:
+    stmt = (
+        select(ClaudeConversation)
+        .where(ClaudeConversation.family_id == family_id)
+        .order_by(ClaudeConversation.created_at.desc(), ClaudeConversation.id.desc())
+        .limit(limit)
+    )
+    rows = list((await session.execute(stmt)).scalars().all())
+    rows.reverse()
+    return rows

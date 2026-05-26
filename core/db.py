@@ -68,6 +68,12 @@ class Store(enum.StrEnum):
     other = "other"
 
 
+class MessageRole(enum.StrEnum):
+    user = "user"
+    assistant = "assistant"
+    tool = "tool"
+
+
 class Family(Base):
     __tablename__ = "families"
 
@@ -167,6 +173,19 @@ class ShoppingItem(Base):
     )
     bought: Mapped[bool] = mapped_column(default=False, nullable=False)
     bought_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[CreatedAt]
+
+
+class ClaudeConversation(Base):
+    __tablename__ = "claude_conversations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[CreatedAt]
 
 

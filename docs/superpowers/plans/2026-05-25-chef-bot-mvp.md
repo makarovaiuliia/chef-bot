@@ -3225,11 +3225,13 @@ git commit -m "feat(bot): add /list handler with interactive checkboxes"
 
 ### Task 3.1: Add `claude_conversations` table
 
+> **Status:** ✅ DONE (2026-05-26). `MessageRole` uses `enum.StrEnum`. Migration applied; 9 tables. `recent_conversation` orders by `created_at desc, id desc` to be deterministic when many messages land in the same second.
+
 **Files:**
 - Modify: `core/db.py`
 - Create: `alembic/versions/0004_conversations.py`
 
-- [ ] **Step 1: Append to `core/db.py`**
+- [x] **Step 1: Append to `core/db.py`**
 
 ```python
 class MessageRole(str, enum.Enum):
@@ -3251,12 +3253,12 @@ class ClaudeConversation(Base):
     created_at: Mapped[CreatedAt]
 ```
 
-- [ ] **Step 2: Generate + apply migration**
+- [x] **Step 2: Generate + apply migration**
 
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic revision --autogenerate -m "add claude_conversations"`
 Rename to `0004_conversations.py`. Run `alembic upgrade head`.
 
-- [ ] **Step 3: Append repo funcs**
+- [x] **Step 3: Append repo funcs**
 
 In `core/repositories.py`:
 
@@ -3301,7 +3303,7 @@ async def recent_conversation(
     return rows
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/db.py alembic/versions/0004_conversations.py core/repositories.py
