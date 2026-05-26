@@ -3650,11 +3650,13 @@ git commit -m "feat(prompts): add conversation.md"
 
 ### Task 3.4: Implement `conversation.handle_message()` with tool-use loop
 
+> **Status:** ✅ DONE (2026-05-26). 2/2 tests pass (no-tool path + tool_use → end_turn). assistant_blocks built with `append` (cleaner than the plan's `insert(0, ...)` for the text block since the text always comes first anyway).
+
 **Files:**
 - Create: `core/services/conversation.py`
 - Test: `tests/integration/test_conversation.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/integration/test_conversation.py
@@ -3735,7 +3737,7 @@ async def test_handle_message_uses_tool(db_session, monkeypatch):
     assert fake_client.chat.call_count == 2
 ```
 
-- [ ] **Step 2: Implement `core/services/conversation.py`**
+- [x] **Step 2: Implement `core/services/conversation.py`**
 
 ```python
 # core/services/conversation.py
@@ -3871,12 +3873,12 @@ async def handle_message(
     return final_text
 ```
 
-- [ ] **Step 3: Run tests, verify they pass**
+- [x] **Step 3: Run tests, verify they pass**
 
 Run: `pytest tests/integration/test_conversation.py -v`
 Expected: PASS (2/2)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/services/conversation.py tests/integration/test_conversation.py
