@@ -60,6 +60,14 @@ class ProteinKind(enum.StrEnum):
     mixed = "mixed"
 
 
+class Store(enum.StrEnum):
+    makro = "makro"
+    villa = "villa"
+    lotus = "lotus"
+    seven_eleven = "seven_eleven"
+    other = "other"
+
+
 class Family(Base):
     __tablename__ = "families"
 
@@ -134,6 +142,32 @@ class Recipe(Base):
     generated_at: Mapped[CreatedAt]
 
     meal: Mapped["Meal"] = relationship(back_populates="recipe")
+
+
+class ShoppingList(Base):
+    __tablename__ = "shopping_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_id: Mapped[int] = mapped_column(ForeignKey("menus.id"), nullable=False)
+    created_at: Mapped[CreatedAt]
+
+
+class ShoppingItem(Base):
+    __tablename__ = "shopping_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    shopping_list_id: Mapped[int | None] = mapped_column(
+        ForeignKey("shopping_lists.id")
+    )
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    quantity: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    store: Mapped[Store] = mapped_column(
+        Enum(Store), default=Store.other, nullable=False
+    )
+    bought: Mapped[bool] = mapped_column(default=False, nullable=False)
+    bought_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[CreatedAt]
 
 
 _engine: AsyncEngine | None = None

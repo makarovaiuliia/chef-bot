@@ -2687,11 +2687,13 @@ git commit -m "feat(bot): add /recipe handler"
 
 ### Task 2.1: Add `shopping_lists` and `shopping_items` ORM models + migration
 
+> **Status:** ✅ DONE (2026-05-26). Migration applied; 8 tables present. `Store` uses `enum.StrEnum` for consistency with the rest of the schema.
+
 **Files:**
 - Modify: `core/db.py`
 - Create: `alembic/versions/0003_shopping.py` (via autogenerate)
 
-- [ ] **Step 1: Append to `core/db.py`**
+- [x] **Step 1: Append to `core/db.py`**
 
 ```python
 class Store(str, enum.Enum):
@@ -2728,14 +2730,14 @@ class ShoppingItem(Base):
     created_at: Mapped[CreatedAt]
 ```
 
-- [ ] **Step 2: Generate and apply migration**
+- [x] **Step 2: Generate and apply migration**
 
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic revision --autogenerate -m "add shopping tables"`
 Rename to `0003_shopping.py`.
 
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic upgrade head`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add core/db.py alembic/versions/0003_shopping.py
