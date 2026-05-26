@@ -300,11 +300,13 @@ git commit -m "feat(config): add pydantic-settings configuration"
 
 ### Task 0.4: Create `core/db.py` — ORM base + session factory
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline. Imports verified via `python -c`.
+
 **Files:**
 - Create: `core/__init__.py` (empty)
 - Create: `core/db.py`
 
-- [ ] **Step 1: Implement `core/db.py`**
+- [x] **Step 1: Implement `core/db.py`**
 
 ```python
 # core/db.py
@@ -368,7 +370,7 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
             raise
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/__init__.py core/db.py
