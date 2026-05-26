@@ -2442,11 +2442,13 @@ git commit -m "feat(prompts): add recipe.md"
 
 ### Task 1.12: Implement `recipe_service.get_recipe()` (TDD)
 
+> **Status:** ✅ DONE (2026-05-26). Test passes (including the cache-hit assertion on the second call).
+
 **Files:**
 - Create: `core/services/recipe_service.py`
 - Test: `tests/integration/test_recipe_service.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/integration/test_recipe_service.py
@@ -2499,7 +2501,7 @@ async def test_get_recipe_generates_and_caches(db_session, monkeypatch):
     fake_client.chat.assert_not_called()
 ```
 
-- [ ] **Step 2: Implement `core/services/recipe_service.py`**
+- [x] **Step 2: Implement `core/services/recipe_service.py`**
 
 ```python
 # core/services/recipe_service.py
@@ -2583,12 +2585,12 @@ async def get_current_meal(
     return None
 ```
 
-- [ ] **Step 3: Run test, verify it passes**
+- [x] **Step 3: Run test, verify it passes**
 
 Run: `pytest tests/integration/test_recipe_service.py -v`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/services/recipe_service.py tests/integration/test_recipe_service.py
