@@ -1,9 +1,23 @@
+import enum
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import date as DateType
 from datetime import datetime
 from typing import Annotated
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -23,6 +37,27 @@ CreatedAt = Annotated[
     datetime,
     mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False),
 ]
+
+
+class MenuStatus(enum.StrEnum):
+    draft = "draft"
+    active = "active"
+    archived = "archived"
+
+
+class MealSlot(enum.StrEnum):
+    lunch = "lunch"
+    dinner = "dinner"
+
+
+class ProteinKind(enum.StrEnum):
+    chicken = "chicken"
+    fish = "fish"
+    seafood = "seafood"
+    beef = "beef"
+    pork = "pork"
+    vegetarian = "vegetarian"
+    mixed = "mixed"
 
 
 class Family(Base):
@@ -47,6 +82,58 @@ class FamilyMember(Base):
     created_at: Mapped[CreatedAt]
 
     family: Mapped["Family"] = relationship(back_populates="members")
+
+
+class Menu(Base):
+    __tablename__ = "menus"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
+    start_date: Mapped[DateType] = mapped_column(Date, nullable=False)
+    days_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[MenuStatus] = mapped_column(
+        Enum(MenuStatus), default=MenuStatus.draft, nullable=False
+    )
+    created_at: Mapped[CreatedAt]
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    meals: Mapped[list["Meal"]] = relationship(
+        back_populates="menu", cascade="all, delete-orphan", order_by="Meal.date, Meal.slot"
+    )
+
+
+class Meal(Base):
+    __tablename__ = "meals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    menu_id: Mapped[int] = mapped_column(ForeignKey("menus.id"), nullable=False)
+    date: Mapped[DateType] = mapped_column(Date, nullable=False)
+    slot: Mapped[MealSlot] = mapped_column(Enum(MealSlot), nullable=False)
+    dish_name: Mapped[str] = mapped_column(Text, nullable=False)
+    side_dishes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    protein_kind: Mapped[ProteinKind] = mapped_column(Enum(ProteinKind), nullable=False)
+
+    menu: Mapped["Menu"] = relationship(back_populates="meals")
+    recipe: Mapped["Recipe | None"] = relationship(
+        back_populates="meal", uselist=False, cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (UniqueConstraint("menu_id", "date", "slot", name="uq_meal_slot"),)
+
+
+class Recipe(Base):
+    __tablename__ = "recipes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meal_id: Mapped[int] = mapped_column(
+        ForeignKey("meals.id"), unique=True, nullable=False
+    )
+    content_md: Mapped[str] = mapped_column(Text, nullable=False)
+    ingredients: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
+    prep_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    generated_at: Mapped[CreatedAt]
+
+    meal: Mapped["Meal"] = relationship(back_populates="recipe")
 
 
 _engine: AsyncEngine | None = None

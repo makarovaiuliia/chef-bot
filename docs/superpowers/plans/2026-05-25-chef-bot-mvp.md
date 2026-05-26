@@ -1004,11 +1004,13 @@ git commit -m "chore: add Dockerfile and .dockerignore"
 
 ### Task 1.1: Add menus, meals, recipes ORM models + migration
 
+> **Status:** ✅ DONE (2026-05-26). Used `enum.StrEnum` (Python 3.11+) instead of `(str, enum.Enum)` per ruff UP042. Imports consolidated at top of file. Migration applied; all 6 tables present.
+
 **Files:**
 - Modify: `core/db.py` — add Menu, Meal, Recipe
 - Create: `alembic/versions/0002_menus_meals.py` (via autogenerate)
 
-- [ ] **Step 1: Add models to `core/db.py`**
+- [x] **Step 1: Add models to `core/db.py`**
 
 Append at end of file:
 
@@ -1093,7 +1095,7 @@ class Recipe(Base):
     meal: Mapped["Meal"] = relationship(back_populates="recipe")
 ```
 
-- [ ] **Step 2: Generate and apply migration**
+- [x] **Step 2: Generate and apply migration**
 
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic revision --autogenerate -m "add menus, meals, recipes"`
 Inspect the file, rename to `0002_menus_meals.py`.
@@ -1101,7 +1103,7 @@ Inspect the file, rename to `0002_menus_meals.py`.
 Run: `BOT_TOKEN=x ANTHROPIC_API_KEY=x alembic upgrade head`
 Expected: Tables created. Verify with `sqlite3 data/chef.db ".tables"`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add core/db.py alembic/versions/0002_menus_meals.py
