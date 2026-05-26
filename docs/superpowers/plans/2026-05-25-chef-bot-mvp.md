@@ -3314,11 +3314,13 @@ git commit -m "feat(db): add claude_conversations table"
 
 ### Task 3.2: Define tools in `core/tools.py`
 
+> **Status:** ✅ DONE (2026-05-26). 18/18 tests pass. `_tool_mark_bought` uses `datetime.now(UTC)` + `await session.flush()` (the plan used deprecated `utcnow()` and missed the flush). Imports of `ShoppingItem` and `Store` lifted to module level so ruff is happy.
+
 **Files:**
 - Create: `core/tools.py`
 - Test: `tests/unit/test_tools.py`
 
-- [ ] **Step 1: Write `core/tools.py`**
+- [x] **Step 1: Write `core/tools.py`**
 
 ```python
 # core/tools.py
@@ -3568,7 +3570,7 @@ async def _tool_mark_bought(
     return f"Отметил купленным: {target.name}"
 ```
 
-- [ ] **Step 2: Write tests**
+- [x] **Step 2: Write tests**
 
 ```python
 # tests/unit/test_tools.py
@@ -3588,12 +3590,12 @@ def test_tool_names_are_unique():
     assert len(names) == len(set(names))
 ```
 
-- [ ] **Step 3: Run tests, verify they pass**
+- [x] **Step 3: Run tests, verify they pass**
 
 Run: `pytest tests/unit/test_tools.py -v`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/tools.py tests/unit/test_tools.py
