@@ -219,11 +219,13 @@ git commit -m "chore: add .gitignore and .env.example"
 
 ### Task 0.3: Create `config.py` (pydantic-settings)
 
+> **Status:** ✅ DONE (2026-05-26). Added `NoDecode` + `field_validator` for comma-separated `ALLOWLIST_TELEGRAM_IDS` (pydantic-settings 2.x JSON-decodes list fields by default).
+
 **Files:**
 - Create: `config.py`
 - Test: `tests/unit/test_config.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/unit/test_config.py
@@ -245,12 +247,12 @@ def test_settings_load_from_env(monkeypatch):
     assert s.claude_model == "claude-sonnet-4-6"
 ```
 
-- [ ] **Step 2: Run test, verify it fails**
+- [x] **Step 2: Run test, verify it fails**
 
 Run: `pytest tests/unit/test_config.py -v`
 Expected: FAIL (ImportError — config.Settings does not exist)
 
-- [ ] **Step 3: Implement `config.py`**
+- [x] **Step 3: Implement `config.py`**
 
 ```python
 # config.py
@@ -280,12 +282,12 @@ def get_settings() -> Settings:
     return Settings()
 ```
 
-- [ ] **Step 4: Run test, verify it passes**
+- [x] **Step 4: Run test, verify it passes**
 
 Run: `pytest tests/unit/test_config.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add config.py tests/unit/test_config.py tests/__init__.py tests/unit/__init__.py
