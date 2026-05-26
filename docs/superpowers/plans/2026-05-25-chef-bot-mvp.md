@@ -543,10 +543,12 @@ git commit -m "feat(db): init alembic and add first migration"
 
 ### Task 0.7: Add `core/exceptions.py`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/exceptions.py`
 
-- [ ] **Step 1: Write `core/exceptions.py`**
+- [x] **Step 1: Write `core/exceptions.py`**
 
 ```python
 # core/exceptions.py
@@ -578,7 +580,7 @@ class LLMInvalidResponse(LLMError):
     pass
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/exceptions.py
