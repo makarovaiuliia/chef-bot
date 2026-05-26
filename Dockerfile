@@ -13,6 +13,5 @@ RUN pip install --no-cache-dir -e .
 COPY . ./
 
 RUN mkdir -p /app/data
-VOLUME ["/app/data"]
 
 CMD ["sh", "-c", "alembic upgrade head && python -m bot.main"]
