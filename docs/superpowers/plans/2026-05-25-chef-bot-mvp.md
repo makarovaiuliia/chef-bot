@@ -2394,10 +2394,12 @@ git commit -m "feat(bot): add /menu and /today handlers"
 
 ### Task 1.11: Write `core/prompts/recipe.md`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/prompts/recipe.md`
 
-- [ ] **Step 1: Write recipe prompt**
+- [x] **Step 1: Write recipe prompt**
 
 ```markdown
 # Задача: подробный рецепт
@@ -2429,7 +2431,7 @@ git commit -m "feat(bot): add /menu and /today handlers"
 - НЕ используй лук в салатах. НЕ используй индейку. НЕ используй чеснок в блюдах.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/prompts/recipe.md
