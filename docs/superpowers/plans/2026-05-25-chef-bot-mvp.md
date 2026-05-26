@@ -760,6 +760,8 @@ git commit -m "feat(family): add family_service with allowlist auth"
 
 ### Task 0.9: Create bot skeleton with `/start` and `/help`
 
+> **Status:** ✅ DONE (2026-05-26). Imports verified via dry-run; ruff clean. Step 4 (manual Telegram smoke test) deferred — requires real BOT_TOKEN; will exercise after Task 0.10 once Docker image runs end-to-end.
+
 **Files:**
 - Create: `bot/__init__.py` (empty)
 - Create: `bot/main.py`
@@ -767,7 +769,7 @@ git commit -m "feat(family): add family_service with allowlist auth"
 - Create: `bot/handlers/__init__.py`
 - Create: `bot/handlers/start.py`
 
-- [ ] **Step 1: Write `bot/middlewares.py`**
+- [x] **Step 1: Write `bot/middlewares.py`**
 
 ```python
 # bot/middlewares.py
@@ -818,7 +820,7 @@ class FamilyResolverMiddleware(BaseMiddleware):
             return await handler(event, data)
 ```
 
-- [ ] **Step 2: Write `bot/handlers/start.py`**
+- [x] **Step 2: Write `bot/handlers/start.py`**
 
 ```python
 # bot/handlers/start.py
@@ -849,7 +851,7 @@ async def cmd_help(message: Message) -> None:
     await cmd_start(message)
 ```
 
-- [ ] **Step 3: Write `bot/main.py`**
+- [x] **Step 3: Write `bot/main.py`**
 
 ```python
 # bot/main.py
@@ -896,7 +898,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-- [ ] **Step 4: Manual smoke test**
+- [ ] **Step 4: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 With a valid `.env` file (real `BOT_TOKEN`, `ALLOWLIST_TELEGRAM_IDS=<your id>`):
 
@@ -905,7 +907,7 @@ Expected: Logs "starting bot polling". From your Telegram, send `/start` to the 
 
 Stop with Ctrl-C.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add bot/
