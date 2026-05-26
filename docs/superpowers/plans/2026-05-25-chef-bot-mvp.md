@@ -1114,11 +1114,13 @@ git commit -m "feat(db): add menus, meals, recipes models and migration"
 
 ### Task 1.2: Add Pydantic domain models
 
+> **Status:** ✅ DONE (2026-05-26). 2/2 tests pass.
+
 **Files:**
 - Create: `core/models.py`
 - Test: `tests/unit/test_models.py`
 
-- [ ] **Step 1: Write `core/models.py`**
+- [x] **Step 1: Write `core/models.py`**
 
 ```python
 # core/models.py
@@ -1175,7 +1177,7 @@ class LLMRecipeResponse(BaseModel):
     prep_minutes: int
 ```
 
-- [ ] **Step 2: Write tests**
+- [x] **Step 2: Write tests**
 
 ```python
 # tests/unit/test_models.py
@@ -1212,12 +1214,12 @@ def test_llm_menu_response_parsing():
     assert len(r.meals) == 2
 ```
 
-- [ ] **Step 3: Run tests, verify they pass**
+- [x] **Step 3: Run tests, verify they pass**
 
 Run: `pytest tests/unit/test_models.py -v`
 Expected: PASS (2/2)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/models.py tests/unit/test_models.py
