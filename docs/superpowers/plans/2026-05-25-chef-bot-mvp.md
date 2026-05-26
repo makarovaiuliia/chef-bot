@@ -1320,11 +1320,13 @@ git commit -m "feat(prompts): add base_context.md with user context"
 
 ### Task 1.4: Implement `core/llm.py` (Anthropic client wrapper)
 
+> **Status:** ✅ DONE (2026-05-26). 4/4 parser tests pass. LLMClient.chat() not exercised against live API yet — will be covered by Task 1.7 integration test.
+
 **Files:**
 - Create: `core/llm.py`
 - Test: `tests/unit/test_llm_parsing.py`
 
-- [ ] **Step 1: Write `core/llm.py`**
+- [x] **Step 1: Write `core/llm.py`**
 
 ```python
 # core/llm.py
@@ -1455,7 +1457,7 @@ def parse_json_response(text: str) -> dict:
         raise LLMInvalidResponse(f"Could not parse JSON: {e}\nText: {text[:500]}") from e
 ```
 
-- [ ] **Step 2: Write tests for the parser**
+- [x] **Step 2: Write tests for the parser**
 
 ```python
 # tests/unit/test_llm_parsing.py
@@ -1484,12 +1486,12 @@ def test_invalid_json_raises():
         parse_json_response("not json at all")
 ```
 
-- [ ] **Step 3: Run tests, verify they pass**
+- [x] **Step 3: Run tests, verify they pass**
 
 Run: `pytest tests/unit/test_llm_parsing.py -v`
 Expected: PASS (4/4)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/llm.py tests/unit/test_llm_parsing.py
