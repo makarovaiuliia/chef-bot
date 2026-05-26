@@ -918,11 +918,13 @@ git commit -m "feat(bot): add bot skeleton with /start and allowlist middleware"
 
 ### Task 0.10: Add Dockerfile and `.dockerignore`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline. Step 3 (`docker build`) deferred — verify before deploying to PaaS.
+
 **Files:**
 - Create: `Dockerfile`
 - Create: `.dockerignore`
 
-- [ ] **Step 1: Write `Dockerfile`**
+- [x] **Step 1: Write `Dockerfile`**
 
 ```dockerfile
 FROM python:3.12-slim
@@ -945,7 +947,7 @@ VOLUME ["/app/data"]
 CMD ["sh", "-c", "alembic upgrade head && python -m bot.main"]
 ```
 
-- [ ] **Step 2: Write `.dockerignore`**
+- [x] **Step 2: Write `.dockerignore`**
 
 ```
 .git
@@ -974,7 +976,7 @@ docker run --rm -e BOT_TOKEN=$BOT_TOKEN \
 ```
 Expected: Container starts, alembic runs migration, bot starts polling. From Telegram `/start` works.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Dockerfile .dockerignore
