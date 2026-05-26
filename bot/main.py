@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from loguru import logger
 
+from bot.handlers import plan as plan_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import AllowlistMiddleware, FamilyResolverMiddleware
 from config import get_settings
@@ -32,6 +33,7 @@ async def main() -> None:
     dp.callback_query.middleware(FamilyResolverMiddleware())
 
     dp.include_router(start_handler.router)
+    dp.include_router(plan_handler.router)
 
     logger.info("starting bot polling")
     await dp.start_polling(bot)

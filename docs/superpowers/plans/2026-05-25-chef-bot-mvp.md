@@ -2052,13 +2052,15 @@ git commit -m "feat(menu): add dish_replacer service"
 
 ### Task 1.9: Build `/plan` FSM wizard
 
+> **Status:** ✅ DONE (2026-05-26). Imports verified; ruff clean. Step 5 (Telegram smoke test) deferred — requires real BOT_TOKEN.
+
 **Files:**
 - Create: `bot/fsm.py`
 - Create: `bot/keyboards.py`
 - Create: `bot/handlers/plan.py`
 - Modify: `bot/main.py` — register plan router
 
-- [ ] **Step 1: Write FSM states (`bot/fsm.py`)**
+- [x] **Step 1: Write FSM states (`bot/fsm.py`)**
 
 ```python
 # bot/fsm.py
@@ -2073,7 +2075,7 @@ class PlanWizard(StatesGroup):
     ask_replace_hint = State()
 ```
 
-- [ ] **Step 2: Write keyboards (`bot/keyboards.py`)**
+- [x] **Step 2: Write keyboards (`bot/keyboards.py`)**
 
 ```python
 # bot/keyboards.py
@@ -2106,7 +2108,7 @@ def kb_meals_for_replace(meals) -> InlineKeyboardMarkup:
     return b.as_markup()
 ```
 
-- [ ] **Step 3: Write `bot/handlers/plan.py`**
+- [x] **Step 3: Write `bot/handlers/plan.py`**
 
 ```python
 # bot/handlers/plan.py
@@ -2277,7 +2279,7 @@ async def msg_replace_hint(
     )
 ```
 
-- [ ] **Step 4: Register plan router in `bot/main.py`**
+- [x] **Step 4: Register plan router in `bot/main.py`**
 
 Add to the `main()` function in `bot/main.py`, after `dp.include_router(start_handler.router)`:
 
@@ -2286,7 +2288,7 @@ from bot.handlers import plan as plan_handler
 dp.include_router(plan_handler.router)
 ```
 
-- [ ] **Step 5: Manual smoke test**
+- [ ] **Step 5: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Run: `python -m bot.main`. From Telegram run `/plan`, click "7 дней", type "курица, рис", wait, click "Утвердить".
 Expected: Bot generates a menu, displays it formatted, "Утвердить" finalizes it. Check `data/chef.db`:
@@ -2296,7 +2298,7 @@ sqlite3 data/chef.db "SELECT id, days_count, status FROM menus;"
 sqlite3 data/chef.db "SELECT date, slot, dish_name FROM meals ORDER BY date, slot;"
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bot/fsm.py bot/keyboards.py bot/handlers/plan.py bot/main.py
