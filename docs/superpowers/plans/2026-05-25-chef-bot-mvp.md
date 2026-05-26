@@ -1895,11 +1895,13 @@ git commit -m "feat(menu): add menu_planner.start_planning with JSON retry"
 
 ### Task 1.8: Implement `dish_replacer.replace_meal()` (TDD)
 
+> **Status:** ✅ DONE (2026-05-26). Test passes. While building this, hit async-lazy-load on `menu.meals` from `create_draft_menu`; folded the refresh into the repository function itself so all callers get the loaded relationship. Removed the now-redundant refresh from `menu_planner.start_planning`.
+
 **Files:**
 - Create: `core/services/dish_replacer.py`
 - Test: `tests/integration/test_dish_replacer.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/integration/test_dish_replacer.py
@@ -1946,7 +1948,7 @@ async def test_replace_meal_swaps_dish(db_session, monkeypatch):
     assert meal.protein_kind == ProteinKind.fish
 ```
 
-- [ ] **Step 2: Write the dish_replacer prompt**
+- [x] **Step 2: Write the dish_replacer prompt**
 
 Create `core/prompts/dish_replacer.md`:
 
@@ -1969,7 +1971,7 @@ Create `core/prompts/dish_replacer.md`:
 ```
 ```
 
-- [ ] **Step 3: Implement `core/services/dish_replacer.py`**
+- [x] **Step 3: Implement `core/services/dish_replacer.py`**
 
 ```python
 # core/services/dish_replacer.py
@@ -2034,12 +2036,12 @@ async def replace_meal(
     )
 ```
 
-- [ ] **Step 4: Run test, verify it passes**
+- [x] **Step 4: Run test, verify it passes**
 
 Run: `pytest tests/integration/test_dish_replacer.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add core/services/dish_replacer.py core/prompts/dish_replacer.md tests/integration/test_dish_replacer.py

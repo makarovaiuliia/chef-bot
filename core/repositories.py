@@ -37,6 +37,7 @@ async def create_draft_menu(
         )
         session.add(meal)
     await session.flush()
+    await session.refresh(menu, attribute_names=["meals"])
     return menu
 
 

@@ -67,15 +67,13 @@ async def start_planning(
             raise LLMInvalidResponse(f"Failed to parse menu after retry: {e2}") from e2
 
     meals_payload = [m.model_dump(mode="python") for m in validated.meals]
-    menu = await repositories.create_draft_menu(
+    return await repositories.create_draft_menu(
         session,
         family_id=family_id,
         start_date=start_date,
         days_count=days_count,
         meals=meals_payload,
     )
-    await session.refresh(menu, attribute_names=["meals"])
-    return menu
 
 
 async def approve(session: AsyncSession, menu_id: int) -> None:
