@@ -49,3 +49,13 @@ class LLMRecipeResponse(BaseModel):
     content_md: str
     ingredients: list[IngredientDTO]
     prep_minutes: int
+
+
+class ShoppingItemDTO(BaseModel):
+    name: str
+    quantity: str = ""
+    store: str = "other"
+
+
+class LLMShoppingResponse(BaseModel):
+    items: list[ShoppingItemDTO]

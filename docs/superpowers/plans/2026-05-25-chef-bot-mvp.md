@@ -2803,13 +2803,15 @@ git commit -m "feat(prompts): add shopping_list.md"
 
 ### Task 2.3: Implement `shopping_list.build_from_menu()` (TDD)
 
+> **Status:** ✅ DONE (2026-05-26). 2/2 tests pass (build_from_menu + toggle_bought round-trip). Used `datetime.now(UTC)` in `mark_shopping_item_bought` instead of deprecated `utcnow()`. Added `await session.flush()` after the mutation so the round-trip test sees the persisted state.
+
 **Files:**
 - Create: `core/services/shopping_list.py`
 - Modify: `core/repositories.py` — add shopping repo funcs
 - Test: `tests/integration/test_shopping_list.py`
 - Modify: `core/models.py` — add `LLMShoppingResponse`
 
-- [ ] **Step 1: Append repo funcs to `core/repositories.py`**
+- [x] **Step 1: Append repo funcs to `core/repositories.py`**
 
 ```python
 from core.db import ShoppingItem, ShoppingList, Store
@@ -2867,7 +2869,7 @@ async def mark_shopping_item_bought(
     return item
 ```
 
-- [ ] **Step 2: Append to `core/models.py`**
+- [x] **Step 2: Append to `core/models.py`**
 
 ```python
 class ShoppingItemDTO(BaseModel):
@@ -2880,7 +2882,7 @@ class LLMShoppingResponse(BaseModel):
     items: list[ShoppingItemDTO]
 ```
 
-- [ ] **Step 3: Write the failing test**
+- [x] **Step 3: Write the failing test**
 
 ```python
 # tests/integration/test_shopping_list.py
@@ -2930,7 +2932,7 @@ async def test_build_from_menu_creates_grouped_items(db_session, monkeypatch):
     assert any(i.name == "Фета" and i.store.value == "villa" for i in items)
 ```
 
-- [ ] **Step 4: Implement `core/services/shopping_list.py`**
+- [x] **Step 4: Implement `core/services/shopping_list.py`**
 
 ```python
 # core/services/shopping_list.py
@@ -3004,12 +3006,12 @@ async def toggle_bought(
     )
 ```
 
-- [ ] **Step 5: Run test, verify it passes**
+- [x] **Step 5: Run test, verify it passes**
 
 Run: `pytest tests/integration/test_shopping_list.py -v`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add core/services/shopping_list.py core/repositories.py core/models.py tests/integration/test_shopping_list.py

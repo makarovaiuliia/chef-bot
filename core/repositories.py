@@ -5,7 +5,17 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.db import Meal, MealSlot, Menu, MenuStatus, ProteinKind, Recipe
+from core.db import (
+    Meal,
+    MealSlot,
+    Menu,
+    MenuStatus,
+    ProteinKind,
+    Recipe,
+    ShoppingItem,
+    ShoppingList,
+    Store,
+)
 
 
 async def create_draft_menu(
@@ -138,3 +148,55 @@ async def save_recipe(
 async def get_recipe(session: AsyncSession, meal_id: int) -> Recipe | None:
     stmt = select(Recipe).where(Recipe.meal_id == meal_id)
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def create_shopping_list(
+    session: AsyncSession,
+    *,
+    menu_id: int,
+    family_id: int,
+    items: list[dict],
+) -> ShoppingList:
+    sl = ShoppingList(menu_id=menu_id)
+    session.add(sl)
+    await session.flush()
+    for item in items:
+        si = ShoppingItem(
+            shopping_list_id=sl.id,
+            family_id=family_id,
+            name=item["name"],
+            quantity=item.get("quantity", ""),
+            store=Store(item.get("store", "other")),
+        )
+        session.add(si)
+    await session.flush()
+    return sl
+
+
+async def get_open_shopping_items(
+    session: AsyncSession, *, family_id: int
+) -> list[ShoppingItem]:
+    stmt = (
+        select(ShoppingItem)
+        .where(ShoppingItem.family_id == family_id, ShoppingItem.bought.is_(False))
+        .order_by(ShoppingItem.store, ShoppingItem.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_shopping_item(
+    session: AsyncSession, item_id: int
+) -> ShoppingItem | None:
+    return await session.get(ShoppingItem, item_id)
+
+
+async def mark_shopping_item_bought(
+    session: AsyncSession, item_id: int, *, bought: bool = True
+) -> ShoppingItem | None:
+    item = await session.get(ShoppingItem, item_id)
+    if item is None:
+        return None
+    item.bought = bought
+    item.bought_at = datetime.now(UTC) if bought else None
+    await session.flush()
+    return item
