@@ -1726,11 +1726,13 @@ git commit -m "feat(repo): add menu/meal/recipe repository functions"
 
 ### Task 1.7: Implement `menu_planner.start_planning()` (TDD)
 
+> **Status:** ✅ DONE (2026-05-26). Test passes. Two deviations from plan: (1) service validates `days_count >= 1` (not `in (7,14)`) — the 7/14 choice is enforced by the FSM wizard, so the service stays callable for tests/replacement flows; (2) `meals_payload` uses `model_dump(mode="python")` so `date` stays as `datetime.date` for SQLite Date columns instead of being serialized to ISO strings.
+
 **Files:**
 - Create: `core/services/menu_planner.py`
 - Test: `tests/integration/test_menu_planner.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # tests/integration/test_menu_planner.py
@@ -1780,12 +1782,12 @@ async def test_start_planning_creates_draft_menu(db_session, monkeypatch):
     assert slots == {MealSlot.lunch, MealSlot.dinner}
 ```
 
-- [ ] **Step 2: Run test, verify it fails**
+- [x] **Step 2: Run test, verify it fails**
 
 Run: `pytest tests/integration/test_menu_planner.py -v`
 Expected: FAIL (ImportError)
 
-- [ ] **Step 3: Implement `core/services/menu_planner.py`**
+- [x] **Step 3: Implement `core/services/menu_planner.py`**
 
 ```python
 # core/services/menu_planner.py
@@ -1877,12 +1879,12 @@ async def get_active(session: AsyncSession, family_id: int) -> Menu | None:
     return await repositories.get_active_menu(session, family_id)
 ```
 
-- [ ] **Step 4: Run test, verify it passes**
+- [x] **Step 4: Run test, verify it passes**
 
 Run: `pytest tests/integration/test_menu_planner.py -v`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add core/services/menu_planner.py tests/integration/test_menu_planner.py
