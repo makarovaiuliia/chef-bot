@@ -12,7 +12,7 @@ from bot.keyboards import kb_days, kb_draft_review, kb_meals_for_replace
 from core import repositories
 from core.db import Family
 from core.exceptions import LLMError
-from core.services import dish_replacer, menu_planner
+from core.services import dish_replacer, menu_planner, shopping_list
 
 router = Router()
 
@@ -87,11 +87,26 @@ async def msg_fridge(
 
 @router.callback_query(PlanWizard.draft_review, F.data.startswith("plan:approve:"))
 async def cb_approve(
-    cb: CallbackQuery, state: FSMContext, db_session: AsyncSession
+    cb: CallbackQuery,
+    state: FSMContext,
+    family: Family,
+    db_session: AsyncSession,
 ) -> None:
     menu_id = int(cb.data.split(":")[2])
     await menu_planner.approve(db_session, menu_id)
-    await cb.message.edit_text(cb.message.html_text + "\n\n✅ Меню утверждено.")
+    await cb.message.edit_text(
+        cb.message.html_text + "\n\n✅ Меню утверждено. Собираю список покупок..."
+    )
+    try:
+        await shopping_list.build_from_menu(
+            db_session, menu_id=menu_id, family_id=family.id
+        )
+        await cb.message.answer("📋 Список покупок готов. Открыть: /list")
+    except LLMError as e:
+        logger.exception("shopping list build failed: {}", e)
+        await cb.message.answer(
+            "Меню утверждено, но список покупок не собрался. Попробуй позже."
+        )
     await state.clear()
     await cb.answer("Утверждено")
 

@@ -3022,10 +3022,12 @@ git commit -m "feat(shopping): add shopping_list.build_from_menu"
 
 ### Task 2.4: Trigger shopping-list build after menu approval
 
+> **Status:** ✅ DONE (2026-05-26). Imports verified; ruff clean. Step 2 (smoke test) deferred — needs real BOT_TOKEN.
+
 **Files:**
 - Modify: `bot/handlers/plan.py` — call `shopping_list.build_from_menu` in approve handler
 
-- [ ] **Step 1: Update `cb_approve` in `bot/handlers/plan.py`**
+- [x] **Step 1: Update `cb_approve` in `bot/handlers/plan.py`**
 
 Replace the existing `cb_approve` with:
 
@@ -3059,11 +3061,11 @@ async def cb_approve(
     await cb.answer("Утверждено")
 ```
 
-- [ ] **Step 2: Manual smoke test**
+- [ ] **Step 2: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Run `/plan` → 7 дней → "ничего" → утвердить. Bot should respond with "Список покупок готов".
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add bot/handlers/plan.py
