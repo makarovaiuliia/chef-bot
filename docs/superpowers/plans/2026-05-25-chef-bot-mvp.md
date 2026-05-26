@@ -2748,10 +2748,12 @@ git commit -m "feat(db): add shopping_lists and shopping_items"
 
 ### Task 2.2: Write `core/prompts/shopping_list.md`
 
+> **Status:** ✅ DONE (2026-05-26). Pure paste task done inline.
+
 **Files:**
 - Create: `core/prompts/shopping_list.md`
 
-- [ ] **Step 1: Write prompt**
+- [x] **Step 1: Write prompt**
 
 ```markdown
 # Задача: сборка списка покупок
@@ -2790,7 +2792,7 @@ git commit -m "feat(db): add shopping_lists and shopping_items"
 - Если ингредиент непонятен или его не нужно покупать (входит в кладовку) — пропусти.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add core/prompts/shopping_list.md
