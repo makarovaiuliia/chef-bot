@@ -2601,11 +2601,13 @@ git commit -m "feat(recipe): add recipe_service with caching and current-meal lo
 
 ### Task 1.13: Implement `/recipe` handler
 
+> **Status:** ✅ DONE (2026-05-26). Imports verified; ruff clean. Step 3 (smoke test) deferred — needs real BOT_TOKEN. **Phase 1 complete: 14/14 tests passing.**
+
 **Files:**
 - Create: `bot/handlers/recipe.py`
 - Modify: `bot/main.py`
 
-- [ ] **Step 1: Write `bot/handlers/recipe.py`**
+- [x] **Step 1: Write `bot/handlers/recipe.py`**
 
 ```python
 # bot/handlers/recipe.py
@@ -2645,18 +2647,18 @@ async def cmd_recipe(
     )
 ```
 
-- [ ] **Step 2: Register in `bot/main.py`**
+- [x] **Step 2: Register in `bot/main.py`**
 
 ```python
 from bot.handlers import recipe as recipe_handler
 dp.include_router(recipe_handler.router)
 ```
 
-- [ ] **Step 3: Manual smoke test**
+- [ ] **Step 3: Manual smoke test** (deferred — needs real BOT_TOKEN)
 
 Send `/recipe` to bot. Expected: ingredient list and steps for the meal closest to current time.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add bot/handlers/recipe.py bot/main.py
