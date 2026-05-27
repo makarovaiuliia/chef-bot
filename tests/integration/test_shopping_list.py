@@ -51,6 +51,68 @@ async def test_build_from_menu_creates_grouped_items(db_session, monkeypatch):
     assert any(i.name == "Фета" and i.store.value == "villa" for i in items)
 
 
+async def test_approve_new_menu_closes_old_menu_items_keeps_manual(db_session):
+    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+
+    # Old menu with shopping list
+    old_menu = await repositories.create_draft_menu(
+        db_session,
+        family_id=family.id,
+        start_date=date(2026, 5, 20),
+        days_count=1,
+        meals=[
+            {
+                "date": date(2026, 5, 20),
+                "slot": "lunch",
+                "dish_name": "Курица",
+                "side_dishes": [],
+                "protein_kind": "chicken",
+            }
+        ],
+    )
+    await repositories.create_shopping_list(
+        db_session,
+        menu_id=old_menu.id,
+        family_id=family.id,
+        items=[
+            {"name": "курица", "quantity": "500г", "store": "makro"},
+            {"name": "рис", "quantity": "1кг", "store": "makro"},
+        ],
+    )
+    await repositories.approve_menu(db_session, menu_id=old_menu.id)
+
+    # User adds a manual item
+    await shopping_list.add_manual_item(
+        db_session, family_id=family.id, name="туалетная бумага"
+    )
+
+    # Confirm initial state: 3 open items
+    assert len(await repositories.get_open_shopping_items(db_session, family_id=family.id)) == 3
+
+    # New menu approved → old menu's items closed, manual item stays
+    new_menu = await repositories.create_draft_menu(
+        db_session,
+        family_id=family.id,
+        start_date=date(2026, 5, 27),
+        days_count=1,
+        meals=[
+            {
+                "date": date(2026, 5, 27),
+                "slot": "lunch",
+                "dish_name": "Рыба",
+                "side_dishes": [],
+                "protein_kind": "fish",
+            }
+        ],
+    )
+    await repositories.approve_menu(db_session, menu_id=new_menu.id)
+
+    open_items = await repositories.get_open_shopping_items(db_session, family_id=family.id)
+    assert len(open_items) == 1
+    assert open_items[0].name == "туалетная бумага"
+    assert open_items[0].shopping_list_id is None
+
+
 async def test_add_manual_item_creates_standalone_item(db_session):
     family, _ = await get_or_create_family(db_session, telegram_user_id=111)
 

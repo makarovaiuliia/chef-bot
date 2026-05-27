@@ -54,7 +54,8 @@ async def create_draft_menu(
 
 
 async def approve_menu(session: AsyncSession, menu_id: int) -> None:
-    """Mark menu active; archive any previously-active menu in the same family."""
+    """Mark menu active; archive previously-active menu and close its open
+    shopping items. Manually-added items (shopping_list_id IS NULL) are kept."""
     menu = await session.get(Menu, menu_id)
     if menu is None:
         return
@@ -62,6 +63,21 @@ async def approve_menu(session: AsyncSession, menu_id: int) -> None:
         update(Menu)
         .where(Menu.family_id == menu.family_id, Menu.status == MenuStatus.active)
         .values(status=MenuStatus.archived)
+    )
+    other_menu_list_ids = (
+        select(ShoppingList.id)
+        .join(Menu, Menu.id == ShoppingList.menu_id)
+        .where(Menu.family_id == menu.family_id, Menu.id != menu_id)
+        .scalar_subquery()
+    )
+    await session.execute(
+        update(ShoppingItem)
+        .where(
+            ShoppingItem.family_id == menu.family_id,
+            ShoppingItem.bought.is_(False),
+            ShoppingItem.shopping_list_id.in_(other_menu_list_ids),
+        )
+        .values(bought=True)
     )
     menu.status = MenuStatus.active
     menu.approved_at = datetime.now(UTC)
