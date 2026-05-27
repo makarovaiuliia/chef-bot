@@ -51,6 +51,24 @@ async def test_build_from_menu_creates_grouped_items(db_session, monkeypatch):
     assert any(i.name == "Фета" and i.store.value == "villa" for i in items)
 
 
+async def test_add_manual_item_creates_standalone_item(db_session):
+    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+
+    item = await shopping_list.add_manual_item(
+        db_session, family_id=family.id, name="молоко"
+    )
+
+    assert item.shopping_list_id is None
+    assert item.name == "молоко"
+    assert item.quantity == ""
+    assert item.store.value == "other"
+    assert item.bought is False
+
+    items = await repositories.get_open_shopping_items(db_session, family_id=family.id)
+    assert len(items) == 1
+    assert items[0].name == "молоко"
+
+
 async def test_toggle_bought_round_trip(db_session):
     family, _ = await get_or_create_family(db_session, telegram_user_id=111)
     menu = await repositories.create_draft_menu(

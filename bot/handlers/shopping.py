@@ -21,6 +21,22 @@ def _group_by_store(items):
     return [(s, grouped[s]) for s in ordered_stores if grouped[s]]
 
 
+@router.message(Command("add"))
+async def cmd_add(
+    message: Message, family: Family, db_session: AsyncSession
+) -> None:
+    text = (message.text or "").removeprefix("/add").strip()
+    if not text:
+        await message.answer(
+            "Использование: /add <название>\nПример: /add молоко"
+        )
+        return
+    await shopping_list.add_manual_item(
+        db_session, family_id=family.id, name=text
+    )
+    await message.answer(f"Добавил: {text}")
+
+
 @router.message(Command("list"))
 async def cmd_list(
     message: Message, family: Family, db_session: AsyncSession

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core import repositories
 from core.db import ShoppingItem, Store
 from core.services import dish_replacer, recipe_service
+from core.services import shopping_list as shopping_list_service
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -210,15 +211,13 @@ async def _tool_add_shopping_item(
         store = Store(input.get("store", "other"))
     except ValueError:
         store = Store.other
-    item = ShoppingItem(
-        shopping_list_id=None,
+    await shopping_list_service.add_manual_item(
+        session,
         family_id=family_id,
         name=input["name"],
         quantity=input.get("quantity", ""),
         store=store,
     )
-    session.add(item)
-    await session.flush()
     return f"Добавил в список: {input['name']}"
 
 

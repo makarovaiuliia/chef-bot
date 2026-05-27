@@ -4,7 +4,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import repositories
-from core.db import ShoppingItem, ShoppingList
+from core.db import ShoppingItem, ShoppingList, Store
 from core.exceptions import LLMInvalidResponse, MenuNotFound
 from core.llm import LLMClient, build_system_blocks, parse_json_response
 from core.models import LLMShoppingResponse
@@ -68,3 +68,24 @@ async def toggle_bought(
     return await repositories.mark_shopping_item_bought(
         session, item_id, bought=not item.bought
     )
+
+
+async def add_manual_item(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    name: str,
+    quantity: str = "",
+    store: Store = Store.other,
+) -> ShoppingItem:
+    """Add a standalone shopping item (not bound to any menu's shopping_list)."""
+    item = ShoppingItem(
+        shopping_list_id=None,
+        family_id=family_id,
+        name=name,
+        quantity=quantity,
+        store=store,
+    )
+    session.add(item)
+    await session.flush()
+    return item
