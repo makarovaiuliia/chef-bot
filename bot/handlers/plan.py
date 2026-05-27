@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -7,8 +7,9 @@ from aiogram.types import CallbackQuery, Message
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.date_input import parse_date_input
 from bot.fsm import PlanWizard
-from bot.keyboards import kb_days, kb_draft_review, kb_meals_for_replace
+from bot.keyboards import kb_days, kb_draft_review, kb_meals_for_replace, kb_start_date
 from core import repositories
 from core.db import Family
 from core.exceptions import LLMError
@@ -47,12 +48,49 @@ async def cmd_plan(message: Message, state: FSMContext) -> None:
 async def cb_days(cb: CallbackQuery, state: FSMContext) -> None:
     days = int(cb.data.split(":")[2])
     await state.update_data(days_count=days)
-    await state.set_state(PlanWizard.ask_fridge)
+    await state.set_state(PlanWizard.ask_start_date)
     await cb.message.edit_text(
-        f"{days} дней. Что уже есть в холодильнике? "
-        "Перечисли через запятую (или напиши «ничего»)."
+        f"{days} дней. С какой даты начинаем? "
+        "Нажми кнопку или напиши дату (28.05, 2026-05-28).",
+        reply_markup=kb_start_date(),
     )
     await cb.answer()
+
+
+async def _proceed_to_fridge(
+    target: Message, state: FSMContext, start_date: date
+) -> None:
+    await state.update_data(start_date=start_date.isoformat())
+    await state.set_state(PlanWizard.ask_fridge)
+    await target.answer(
+        f"Старт {start_date.strftime('%d.%m.%Y')}. "
+        "Что уже есть в холодильнике? Перечисли через запятую (или «ничего»)."
+    )
+
+
+@router.callback_query(PlanWizard.ask_start_date, F.data.startswith("plan:start:"))
+async def cb_start_date(cb: CallbackQuery, state: FSMContext) -> None:
+    choice = cb.data.split(":")[2]
+    offset = {"tomorrow": 1, "after_tomorrow": 2}.get(choice)
+    if offset is None:
+        await cb.answer()
+        return
+    start_date = date.today() + timedelta(days=offset)
+    await cb.message.edit_reply_markup(reply_markup=None)
+    await _proceed_to_fridge(cb.message, state, start_date)
+    await cb.answer()
+
+
+@router.message(PlanWizard.ask_start_date)
+async def msg_start_date(message: Message, state: FSMContext) -> None:
+    parsed = parse_date_input(message.text or "", today=date.today())
+    if parsed is None:
+        await message.answer(
+            "Не понял дату. Напиши в формате 28.05 или 2026-05-28, "
+            "либо нажми кнопку выше."
+        )
+        return
+    await _proceed_to_fridge(message, state, parsed)
 
 
 @router.message(PlanWizard.ask_fridge)
@@ -64,6 +102,7 @@ async def msg_fridge(
 ) -> None:
     data = await state.get_data()
     days = data["days_count"]
+    start_date = date.fromisoformat(data["start_date"])
     fridge_text = message.text or ""
     await message.answer("Генерирую меню, это займёт ~20 секунд...")
     try:
@@ -71,7 +110,7 @@ async def msg_fridge(
             db_session,
             family_id=family.id,
             days_count=days,
-            start_date=date.today(),
+            start_date=start_date,
             fridge_text=fridge_text,
         )
     except LLMError as e:

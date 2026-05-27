@@ -9,6 +9,14 @@ def kb_days() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_start_date() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="Завтра", callback_data="plan:start:tomorrow")
+    b.button(text="Послезавтра", callback_data="plan:start:after_tomorrow")
+    b.adjust(2)
+    return b.as_markup()
+
+
 def kb_draft_review(menu_id: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text="✅ Утвердить", callback_data=f"plan:approve:{menu_id}")
