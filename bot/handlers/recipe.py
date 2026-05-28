@@ -29,6 +29,4 @@ async def cmd_recipe(
         logger.exception("recipe error: {}", e)
         await message.answer("Не удалось сгенерировать рецепт. Попробуй позже.")
         return
-    await message.answer(
-        f"{recipe.content_md}\n\n_Время активной готовки: ~{recipe.prep_minutes} мин_"
-    )
+    await message.answer(recipe.content_md)

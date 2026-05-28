@@ -11,7 +11,7 @@ def kb_confirm_overwrite() -> InlineKeyboardMarkup:
 
 
 def kb_shopping_list(items) -> InlineKeyboardMarkup:
-    """Flat checklist: one button per item, no store grouping."""
+    """Flat checklist: one button per item + add button at the bottom."""
     b = InlineKeyboardBuilder()
     for item in items:
         mark = "✅" if item.bought else "☐"
@@ -19,5 +19,6 @@ def kb_shopping_list(items) -> InlineKeyboardMarkup:
         if item.quantity:
             label += f" — {item.quantity}"
         b.button(text=label, callback_data=f"shop:toggle:{item.id}")
+    b.button(text="➕ Добавить", callback_data="shop:add")
     b.adjust(1)
     return b.as_markup()
