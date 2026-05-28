@@ -4,22 +4,26 @@ from aiogram.types import Message
 
 router = Router()
 
+_HELP_TEXT = (
+    "Привет! Я бот-помощник для меню и покупок.\n\n"
+    "Команды:\n"
+    "/menu — текущее меню\n"
+    "/today — что готовить сегодня\n"
+    "/recipe — рецепт текущего приёма\n"
+    "/list — список покупок\n"
+    "/add &lt;название&gt; — добавить пункт в список\n"
+    "/help — справка\n\n"
+    "Чтобы загрузить новое меню — пришли JSON-файл документом.\n\n"
+    "Также я понимаю свободный текст: спроси про меню, попроси заменить "
+    "блюдо или отметить пункт купленным."
+)
+
 
 @router.message(Command("start"))
 async def cmd_start(message: Message) -> None:
-    await message.answer(
-        "Привет! Я бот-помощник для планирования меню.\n\n"
-        "Команды:\n"
-        "/plan — спланировать меню\n"
-        "/menu — показать текущее меню\n"
-        "/today — что готовить сегодня\n"
-        "/recipe — рецепт текущего приёма\n"
-        "/list — список покупок\n"
-        "/help — справка\n\n"
-        "Также я понимаю свободный текст — просто напиши, что хочешь."
-    )
+    await message.answer(_HELP_TEXT)
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    await cmd_start(message)
+    await message.answer(_HELP_TEXT)

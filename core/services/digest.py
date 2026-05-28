@@ -1,4 +1,8 @@
-"""Morning digest: today + tomorrow meals + static defrost reminder."""
+"""Morning digest: today + tomorrow meals + static defrost reminder.
+
+Also appends a warning when the loaded menu has only 1–2 days left, so the
+user knows it's time to load a new one.
+"""
 from datetime import date as DateType
 from datetime import timedelta
 
@@ -31,6 +35,21 @@ def _format_day_block(header: str, d: DateType, meals: list[Meal]) -> str:
     return "\n".join(lines)
 
 
+async def _build_end_of_menu_warning(
+    session: AsyncSession, family_id: int, today: DateType
+) -> str | None:
+    future_meals = await repositories.get_future_meals(session, family_id, today)
+    if not future_meals:
+        return None
+    last_date = max(m.date for m in future_meals)
+    upcoming = (last_date - today).days
+    if upcoming == 2:
+        return "⏳ Меню заканчивается через 2 дня — пора загрузить новое."
+    if upcoming == 1:
+        return "⏳ Меню заканчивается завтра — пора загрузить новое."
+    return None
+
+
 async def build_morning_digest(
     session: AsyncSession, *, family_id: int, today: DateType
 ) -> str | None:
@@ -49,4 +68,9 @@ async def build_morning_digest(
         blocks.append(_format_day_block("📅 Завтра", tomorrow, tomorrow_meals))
 
     blocks.append("🥶 Не забудь поставить разморозку, если надо")
+
+    warning = await _build_end_of_menu_warning(session, family_id, today)
+    if warning:
+        blocks.append(warning)
+
     return "\n\n".join(blocks)

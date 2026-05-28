@@ -18,7 +18,8 @@ async def cmd_recipe(
     meal_id = await recipe_service.get_current_meal(db_session, family_id=family.id)
     if meal_id is None:
         await message.answer(
-            "На сегодня в активном меню нет блюда для текущего времени. Запусти /plan."
+            "На сегодня в активном меню нет блюда для текущего времени. "
+            "Пришли JSON-файл с меню."
         )
         return
     await message.answer("Готовлю рецепт...")

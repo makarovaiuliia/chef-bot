@@ -2,14 +2,20 @@
 from datetime import UTC, datetime
 from datetime import date as DateType
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
 from core import repositories
-from core.db import ShoppingItem, Store
+from core.db import ShoppingItem
 from core.services import dish_replacer, recipe_service
 from core.services import shopping_list as shopping_list_service
+
+
+def _today() -> DateType:
+    return datetime.now(ZoneInfo(get_settings().timezone)).date()
 
 TOOL_SCHEMAS: list[dict] = [
     {
@@ -80,7 +86,7 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "name": "add_shopping_item",
         "description": (
-            "Добавляет пункт в текущий список покупок (или создаёт standalone-пункт). "
+            "Добавляет пункт в список покупок. "
             "Используй когда пользователь говорит 'добавь молоко в список', 'надо купить X'."
         ),
         "input_schema": {
@@ -88,10 +94,6 @@ TOOL_SCHEMAS: list[dict] = [
             "properties": {
                 "name": {"type": "string"},
                 "quantity": {"type": "string", "description": "например '500 г', '1 шт'"},
-                "store": {
-                    "type": "string",
-                    "enum": ["makro", "villa", "lotus", "seven_eleven", "other"],
-                },
             },
             "required": ["name"],
         },
@@ -136,11 +138,14 @@ async def execute_tool(
 
 
 async def _tool_get_active_menu(session: AsyncSession, family_id: int) -> str:
-    menu = await repositories.get_active_menu(session, family_id)
-    if menu is None:
-        return "Активного меню нет."
-    lines = [f"Меню на {menu.days_count} дн. с {menu.start_date.isoformat()}:"]
-    for m in menu.meals:
+    today = _today()
+    meals = await repositories.get_future_meals(session, family_id, today)
+    if not meals:
+        return "Меню не загружено."
+    last_date = max(m.date for m in meals)
+    days = (last_date - today).days + 1
+    lines = [f"Меню на {days} дн. с {today.isoformat()}:"]
+    for m in meals:
         sides = ", ".join(m.side_dishes or [])
         lines.append(
             f"  {m.date.isoformat()} {m.slot.value}: {m.dish_name}"
@@ -207,16 +212,11 @@ async def _tool_get_recipe_for_meal(
 async def _tool_add_shopping_item(
     session: AsyncSession, family_id: int, input: dict
 ) -> str:
-    try:
-        store = Store(input.get("store", "other"))
-    except ValueError:
-        store = Store.other
     await shopping_list_service.add_manual_item(
         session,
         family_id=family_id,
         name=input["name"],
         quantity=input.get("quantity", ""),
-        store=store,
     )
     return f"Добавил в список: {input['name']}"
 

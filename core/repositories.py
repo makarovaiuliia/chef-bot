@@ -1,7 +1,8 @@
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from datetime import date as DateType
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,9 +16,10 @@ from core.db import (
     ProteinKind,
     Recipe,
     ShoppingItem,
-    ShoppingList,
-    Store,
 )
+
+# lunch first, then dinner — enum string order is "dinner" < "lunch", which is wrong for UX
+_SLOT_ORDER = case((Meal.slot == MealSlot.lunch, 0), else_=1)
 
 
 async def create_draft_menu(
@@ -54,44 +56,82 @@ async def create_draft_menu(
 
 
 async def approve_menu(session: AsyncSession, menu_id: int) -> None:
-    """Mark menu active; archive previously-active menu and close its open
-    shopping items. Manually-added items (shopping_list_id IS NULL) are kept."""
+    """Mark a menu active. Multiple active menus per family are allowed —
+    they accumulate into a single forward-looking meal calendar. Past days
+    naturally drop out of display queries that filter by `date >= today`."""
     menu = await session.get(Menu, menu_id)
     if menu is None:
         return
-    await session.execute(
-        update(Menu)
-        .where(Menu.family_id == menu.family_id, Menu.status == MenuStatus.active)
-        .values(status=MenuStatus.archived)
-    )
-    other_menu_list_ids = (
-        select(ShoppingList.id)
-        .join(Menu, Menu.id == ShoppingList.menu_id)
-        .where(Menu.family_id == menu.family_id, Menu.id != menu_id)
-        .scalar_subquery()
-    )
-    await session.execute(
-        update(ShoppingItem)
-        .where(
-            ShoppingItem.family_id == menu.family_id,
-            ShoppingItem.bought.is_(False),
-            ShoppingItem.shopping_list_id.in_(other_menu_list_ids),
-        )
-        .values(bought=True)
-    )
     menu.status = MenuStatus.active
     menu.approved_at = datetime.now(UTC)
 
 
-async def get_active_menu(session: AsyncSession, family_id: int) -> Menu | None:
+async def get_future_meals(
+    session: AsyncSession, family_id: int, from_date: DateType
+) -> list[Meal]:
+    """All meals scheduled on or after from_date for this family."""
     stmt = (
-        select(Menu)
-        .where(Menu.family_id == family_id, Menu.status == MenuStatus.active)
-        .options(selectinload(Menu.meals))
-        .order_by(Menu.approved_at.desc())
-        .limit(1)
+        select(Meal)
+        .join(Menu)
+        .where(
+            Menu.family_id == family_id,
+            Menu.status == MenuStatus.active,
+            Meal.date >= from_date,
+        )
+        .order_by(Meal.date, _SLOT_ORDER)
     )
-    return (await session.execute(stmt)).scalar_one_or_none()
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def find_conflicting_meal_dates(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    dates: Iterable[DateType],
+    from_date: DateType,
+) -> set[DateType]:
+    """Subset of `dates` (only those >= from_date) where this family already
+    has meals scheduled."""
+    dates_list = [d for d in dates if d >= from_date]
+    if not dates_list:
+        return set()
+    stmt = (
+        select(Meal.date)
+        .join(Menu)
+        .where(
+            Menu.family_id == family_id,
+            Menu.status == MenuStatus.active,
+            Meal.date.in_(dates_list),
+        )
+        .distinct()
+    )
+    return {row[0] for row in (await session.execute(stmt)).all()}
+
+
+async def delete_future_meals_on_dates(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    dates: Iterable[DateType],
+    from_date: DateType,
+) -> None:
+    """Delete meals on the given dates (>= from_date). Cascades to recipes."""
+    dates_list = [d for d in dates if d >= from_date]
+    if not dates_list:
+        return
+    stmt = (
+        select(Meal)
+        .join(Menu)
+        .where(
+            Menu.family_id == family_id,
+            Menu.status == MenuStatus.active,
+            Meal.date.in_(dates_list),
+        )
+    )
+    meals = list((await session.execute(stmt)).scalars().all())
+    for m in meals:
+        await session.delete(m)
+    await session.flush()
 
 
 async def get_menu_with_meals(session: AsyncSession, menu_id: int) -> Menu | None:
@@ -116,7 +156,7 @@ async def get_meals_for_date(
             Menu.status == MenuStatus.active,
             Meal.date == on_date,
         )
-        .order_by(Meal.slot)
+        .order_by(_SLOT_ORDER)
     )
     return list((await session.execute(stmt)).scalars().all())
 
@@ -168,36 +208,13 @@ async def get_recipe(session: AsyncSession, meal_id: int) -> Recipe | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-async def create_shopping_list(
-    session: AsyncSession,
-    *,
-    menu_id: int,
-    family_id: int,
-    items: list[dict],
-) -> ShoppingList:
-    sl = ShoppingList(menu_id=menu_id)
-    session.add(sl)
-    await session.flush()
-    for item in items:
-        si = ShoppingItem(
-            shopping_list_id=sl.id,
-            family_id=family_id,
-            name=item["name"],
-            quantity=item.get("quantity", ""),
-            store=Store(item.get("store", "other")),
-        )
-        session.add(si)
-    await session.flush()
-    return sl
-
-
 async def get_open_shopping_items(
     session: AsyncSession, *, family_id: int
 ) -> list[ShoppingItem]:
     stmt = (
         select(ShoppingItem)
         .where(ShoppingItem.family_id == family_id, ShoppingItem.bought.is_(False))
-        .order_by(ShoppingItem.store, ShoppingItem.id)
+        .order_by(ShoppingItem.id)
     )
     return list((await session.execute(stmt)).scalars().all())
 
