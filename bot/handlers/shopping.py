@@ -12,6 +12,26 @@ router = Router()
 _ADD_PROMPT = "Что добавить в список?"
 
 
+def _split_names(text: str) -> list[str]:
+    """Split user input by commas/newlines into separate items."""
+    parts = [p.strip() for p in text.replace("\n", ",").split(",")]
+    return [p for p in parts if p]
+
+
+async def _add_items(
+    message: Message, family: Family, db_session: AsyncSession, names: list[str]
+) -> None:
+    for name in names:
+        await shopping_list.add_manual_item(
+            db_session, family_id=family.id, name=name
+        )
+    if len(names) == 1:
+        await message.answer(f"Добавил: {names[0]}")
+    else:
+        bullets = "\n".join(f"• {n}" for n in names)
+        await message.answer(f"Добавил:\n{bullets}")
+
+
 @router.message(Command("add"))
 async def cmd_add(
     message: Message, family: Family, db_session: AsyncSession
@@ -23,10 +43,11 @@ async def cmd_add(
             reply_markup=ForceReply(input_field_placeholder="например, молоко 1 л"),
         )
         return
-    await shopping_list.add_manual_item(
-        db_session, family_id=family.id, name=text
-    )
-    await message.answer(f"Добавил: {text}")
+    names = _split_names(text)
+    if not names:
+        await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
+        return
+    await _add_items(message, family, db_session, names)
 
 
 @router.message(
@@ -35,14 +56,11 @@ async def cmd_add(
 async def handle_add_reply(
     message: Message, family: Family, db_session: AsyncSession
 ) -> None:
-    name = (message.text or "").strip()
-    if not name:
+    names = _split_names(message.text or "")
+    if not names:
         await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
         return
-    await shopping_list.add_manual_item(
-        db_session, family_id=family.id, name=name
-    )
-    await message.answer(f"Добавил: {name}")
+    await _add_items(message, family, db_session, names)
 
 
 @router.message(Command("list"))
