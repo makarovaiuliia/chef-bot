@@ -1,13 +1,10 @@
-from datetime import datetime
 from functools import lru_cache
-from zoneinfo import ZoneInfo
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import get_settings
 from core import repositories
-from core.db import MealSlot, Recipe
+from core.db import Recipe
 from core.exceptions import LLMInvalidResponse, MealNotFound
 from core.llm import LLMClient, build_system_blocks, parse_json_response
 from core.models import LLMRecipeResponse
@@ -54,19 +51,3 @@ async def get_recipe(session: AsyncSession, *, meal_id: int) -> Recipe:
         ingredients=[i.model_dump() for i in validated.ingredients],
         prep_minutes=validated.prep_minutes,
     )
-
-
-async def get_current_meal(
-    session: AsyncSession, *, family_id: int
-) -> int | None:
-    """Pick today's lunch before 16:00 local time, dinner after."""
-    tz = ZoneInfo(get_settings().timezone)
-    now = datetime.now(tz)
-    today = now.date()
-    target_slot = MealSlot.lunch if now.hour < 16 else MealSlot.dinner
-
-    meals = await repositories.get_meals_for_date(session, family_id, today)
-    for m in meals:
-        if m.slot == target_slot:
-            return m.id
-    return None

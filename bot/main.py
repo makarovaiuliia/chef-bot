@@ -10,7 +10,6 @@ from loguru import logger
 from bot.handlers import freetext as freetext_handler
 from bot.handlers import load as load_handler
 from bot.handlers import menu as menu_handler
-from bot.handlers import recipe as recipe_handler
 from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import AllowlistMiddleware, FamilyResolverMiddleware
@@ -21,7 +20,6 @@ from core.db import get_sessionmaker
 BOT_COMMANDS = [
     BotCommand(command="menu", description="Текущее меню"),
     BotCommand(command="today", description="Что готовить сегодня"),
-    BotCommand(command="recipe", description="Рецепт текущего приёма"),
     BotCommand(command="list", description="Список покупок"),
     BotCommand(command="add", description="Добавить пункт в список"),
     BotCommand(command="help", description="Справка"),
@@ -50,7 +48,6 @@ async def main() -> None:
 
     dp.include_router(start_handler.router)
     dp.include_router(menu_handler.router)
-    dp.include_router(recipe_handler.router)
     dp.include_router(shopping_handler.router)
     dp.include_router(load_handler.router)
     dp.include_router(freetext_handler.router)  # MUST be last — catches plain text

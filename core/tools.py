@@ -206,7 +206,7 @@ async def _tool_get_recipe_for_meal(
     if target is None:
         return f"Не нашёл {input['slot']} на {input['date']} в активном меню."
     recipe = await recipe_service.get_recipe(session, meal_id=target.id)
-    return f"Рецепт «{target.dish_name}» (~{recipe.prep_minutes} мин):\n\n{recipe.content_md}"
+    return recipe.content_md
 
 
 async def _tool_add_shopping_item(

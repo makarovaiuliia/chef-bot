@@ -21,6 +21,7 @@ async def handle_free_text(
     if await state.get_state() is not None:
         return
 
+    thinking = await message.answer("⏳ Думаю...")
     try:
         reply = await conversation.handle_message(
             db_session,
@@ -30,6 +31,6 @@ async def handle_free_text(
         )
     except Exception as e:
         logger.exception("conversation failure: {}", e)
-        await message.answer("Не получилось ответить. Попробуй ещё раз.")
+        await thinking.edit_text("Не получилось ответить. Попробуй ещё раз.")
         return
-    await message.answer(reply)
+    await thinking.edit_text(reply)
