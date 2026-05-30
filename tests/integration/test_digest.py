@@ -1,8 +1,61 @@
 from datetime import date, timedelta
 
 from core import repositories
-from core.services import digest
+from core.services import digest, shopping_list
 from core.services.family_service import get_or_create_family
+
+
+async def test_digest_includes_open_shopping_items(db_session):
+    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    await _make_active_menu(
+        db_session,
+        family.id,
+        [
+            {"date": date(2026, 5, 27), "slot": "lunch", "dish_name": "Курица",
+             "side_dishes": [], "protein_kind": "chicken"},
+        ],
+    )
+    await shopping_list.add_manual_item(db_session, family_id=family.id, name="молоко")
+
+    text = await digest.build_morning_digest(
+        db_session, family_id=family.id, today=date(2026, 5, 27)
+    )
+
+    assert text is not None
+    assert "Курица" in text
+    assert "В списке покупок" in text
+
+
+async def test_digest_fires_with_only_shopping_items_no_menu(db_session):
+    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    await shopping_list.add_manual_item(db_session, family_id=family.id, name="молоко")
+
+    text = await digest.build_morning_digest(
+        db_session, family_id=family.id, today=date(2026, 5, 27)
+    )
+
+    assert text is not None
+    assert "В списке покупок" in text
+    assert "разморозку" not in text
+
+
+async def test_digest_omits_shopping_line_when_list_empty(db_session):
+    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    await _make_active_menu(
+        db_session,
+        family.id,
+        [
+            {"date": date(2026, 5, 27), "slot": "lunch", "dish_name": "Курица",
+             "side_dishes": [], "protein_kind": "chicken"},
+        ],
+    )
+
+    text = await digest.build_morning_digest(
+        db_session, family_id=family.id, today=date(2026, 5, 27)
+    )
+
+    assert text is not None
+    assert "В списке покупок" not in text
 
 
 async def _make_active_menu(

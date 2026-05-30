@@ -1,9 +1,22 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from bot.scheduler import seconds_until_next
+from bot.scheduler import DIGEST_HOUR, seconds_until_next, start_scheduler
 
 BKK = ZoneInfo("Asia/Bangkok")
+
+
+def test_digest_scheduled_for_nine():
+    assert DIGEST_HOUR == 9
+
+
+async def test_start_scheduler_runs_only_digest_task():
+    tasks = start_scheduler(bot=None, sessionmaker=None)
+    try:
+        assert [t.get_name() for t in tasks] == ["digest"]
+    finally:
+        for t in tasks:
+            t.cancel()
 
 
 def test_target_later_today():

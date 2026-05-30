@@ -1,7 +1,7 @@
 """Morning digest: today + tomorrow meals + static defrost reminder.
 
 Also appends a warning when the loaded menu has only 1–2 days left, so the
-user knows it's time to load a new one.
+user knows it's time to load a new one, and the open shopping-list reminder.
 """
 from datetime import date as DateType
 from datetime import timedelta
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import repositories
 from core.db import Meal, MealSlot
+from core.services import reminders
 
 _WEEKDAYS_RU = [
     "понедельник", "вторник", "среда", "четверг",
@@ -58,19 +59,24 @@ async def build_morning_digest(
     tomorrow = today + timedelta(days=1)
     tomorrow_meals = await repositories.get_meals_for_date(session, family_id, tomorrow)
 
-    if not today_meals and not tomorrow_meals:
-        return None
-
     blocks = []
-    if today_meals:
-        blocks.append(_format_day_block("🌅 Сегодня", today, today_meals))
-    if tomorrow_meals:
-        blocks.append(_format_day_block("📅 Завтра", tomorrow, tomorrow_meals))
+    if today_meals or tomorrow_meals:
+        if today_meals:
+            blocks.append(_format_day_block("🌅 Сегодня", today, today_meals))
+        if tomorrow_meals:
+            blocks.append(_format_day_block("📅 Завтра", tomorrow, tomorrow_meals))
 
-    blocks.append("🥶 Не забудь поставить разморозку, если надо")
+        blocks.append("🥶 Не забудь поставить разморозку, если надо")
 
-    warning = await _build_end_of_menu_warning(session, family_id, today)
-    if warning:
-        blocks.append(warning)
+        warning = await _build_end_of_menu_warning(session, family_id, today)
+        if warning:
+            blocks.append(warning)
+
+    shopping = await reminders.build_shopping_reminder(session, family_id=family_id)
+    if shopping:
+        blocks.append(shopping)
+
+    if not blocks:
+        return None
 
     return "\n\n".join(blocks)

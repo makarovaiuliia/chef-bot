@@ -1,6 +1,7 @@
-"""Background scheduler for daily digest (8:00) and shopping reminder (19:00).
+"""Background scheduler for the daily morning digest (9:00).
 
-Native asyncio implementation — no APScheduler. Two long-running tasks, each
+The digest also carries the open shopping-list reminder, so there is no
+separate evening reminder. Native asyncio — one long-running task that
 computes the next BKK-local fire time and sleeps. Stateless across restarts.
 """
 import asyncio
@@ -12,12 +13,12 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from bot.formatting import md_to_telegram_html
 from core.db import FamilyMember
-from core.services import digest, reminders
+from core.services import digest
 
 BKK = ZoneInfo("Asia/Bangkok")
-DIGEST_HOUR = 8
-REMINDER_HOUR = 19
+DIGEST_HOUR = 9
 
 
 def seconds_until_next(
@@ -62,7 +63,9 @@ async def _send_to_all_members(
             continue
         for member in fam_members:
             try:
-                await bot.send_message(member.telegram_user_id, text)
+                await bot.send_message(
+                    member.telegram_user_id, md_to_telegram_html(text)
+                )
             except Exception:
                 logger.exception(
                     "scheduler: send failed user_id={}", member.telegram_user_id
@@ -87,23 +90,12 @@ async def _morning_digest_loop(bot: Bot, sessionmaker: async_sessionmaker) -> No
         await _send_to_all_members(bot, sessionmaker, build)
 
 
-async def _shopping_reminder_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
-    while True:
-        delay = seconds_until_next(REMINDER_HOUR, 0, BKK, now=datetime.now(tz=BKK))
-        logger.info("scheduler: next reminder in {:.0f}s", delay)
-        await asyncio.sleep(delay)
-        await _send_to_all_members(bot, sessionmaker, reminders.build_shopping_reminder)
-
-
 def start_scheduler(
     bot: Bot, sessionmaker: async_sessionmaker
 ) -> list[asyncio.Task]:
     """Spawn background tasks. Caller is responsible for cancelling them at shutdown."""
     return [
         asyncio.create_task(_morning_digest_loop(bot, sessionmaker), name="digest"),
-        asyncio.create_task(
-            _shopping_reminder_loop(bot, sessionmaker), name="reminder"
-        ),
     ]
 
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
             return [int(x.strip()) for x in v.split(",") if x.strip()]
         return v
 
+    vova_telegram_id: int | None = None
     db_url: str = "sqlite+aiosqlite:///./data/chef.db"
     timezone: str = "Asia/Bangkok"
     log_level: str = "INFO"

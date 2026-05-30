@@ -4,6 +4,7 @@ from aiogram.types import Message
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.formatting import md_to_telegram_html
 from core.db import Family, FamilyMember
 from core.services import conversation
 
@@ -33,4 +34,4 @@ async def handle_free_text(
         logger.exception("conversation failure: {}", e)
         await thinking.edit_text("Не получилось ответить. Попробуй ещё раз.")
         return
-    await thinking.edit_text(reply)
+    await thinking.edit_text(md_to_telegram_html(reply))

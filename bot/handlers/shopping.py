@@ -3,7 +3,10 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, ForceReply, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_shopping_list
+from config import get_settings
+from core import repositories
 from core.db import Family
 from core.services import shopping_list
 
@@ -30,6 +33,22 @@ async def _add_items(
     else:
         bullets = "\n".join(f"• {n}" for n in names)
         await message.answer(f"Добавил:\n{bullets}")
+
+    await _notify_vova_added(message, family, db_session, names)
+
+
+async def _notify_vova_added(
+    message: Message, family: Family, db_session: AsyncSession, names: list[str]
+) -> None:
+    """If Вова added the items, ping every other family member."""
+    vova_id = get_settings().vova_telegram_id
+    if not vova_id or message.from_user is None or message.from_user.id != vova_id:
+        return
+    members = await repositories.get_family_members(db_session, family.id)
+    for uid, text in shopping_list.build_add_notifications(
+        adder_id=message.from_user.id, vova_id=vova_id, members=members, names=names
+    ):
+        await message.bot.send_message(uid, md_to_telegram_html(text))
 
 
 @router.message(Command("add"))

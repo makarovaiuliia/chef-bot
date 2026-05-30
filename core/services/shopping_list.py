@@ -1,7 +1,28 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import repositories
-from core.db import ShoppingItem, Store
+from core.db import FamilyMember, ShoppingItem, Store
+
+
+def build_add_notifications(
+    *,
+    adder_id: int,
+    vova_id: int | None,
+    members: list[FamilyMember],
+    names: list[str],
+) -> list[tuple[int, str]]:
+    """When Вова adds items, build (telegram_id, text) pairs for every other member.
+
+    Returns [] unless the adder is Вова and there is something to announce.
+    """
+    if vova_id is None or adder_id != vova_id or not names:
+        return []
+    text = f"🛒 Вова добавил в список: {', '.join(names)}"
+    return [
+        (m.telegram_user_id, text)
+        for m in members
+        if m.telegram_user_id != vova_id
+    ]
 
 
 async def get_open_items(

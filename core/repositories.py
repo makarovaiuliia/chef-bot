@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from core.db import (
     ClaudeConversation,
+    FamilyMember,
     Meal,
     MealSlot,
     Menu,
@@ -206,6 +207,13 @@ async def save_recipe(
 async def get_recipe(session: AsyncSession, meal_id: int) -> Recipe | None:
     stmt = select(Recipe).where(Recipe.meal_id == meal_id)
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def get_family_members(
+    session: AsyncSession, family_id: int
+) -> list[FamilyMember]:
+    stmt = select(FamilyMember).where(FamilyMember.family_id == family_id)
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def get_open_shopping_items(
