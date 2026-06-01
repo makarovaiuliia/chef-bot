@@ -99,15 +99,13 @@ async def test_morning_digest_shows_today_and_tomorrow(db_session):
     )
 
     assert text is not None
-    assert "Сегодня" in text
-    assert "среда, 27 мая" in text
-    assert "Том кха с курицей" in text
-    assert "Лосось с овощами" in text
-    assert "Завтра" in text
-    assert "четверг, 28 мая" in text
-    assert "Стейк рибай" in text
-    assert "Креветки в чесночном соусе" in text
-    assert "разморозку" in text
+    assert "☀️ Сегодня · ср, 27 мая" in text
+    assert "<b>Обед:</b> Том кха с курицей" in text
+    assert "<b>Ужин:</b> Лосось с овощами" in text
+    assert "📅 Завтра · чт, 28 мая" in text
+    assert "<b>Обед:</b> Стейк рибай + салат" in text
+    assert "<b>Ужин:</b> Креветки в чесночном соусе" in text
+    assert "🧊 Разморозка на завтра?" in text
 
 
 async def test_morning_digest_only_today_when_no_tomorrow(db_session):

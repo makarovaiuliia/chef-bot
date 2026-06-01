@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.fsm import LoadConfirm
 from bot.keyboards import kb_confirm_overwrite
+from core import emoji
 from core.db import Family
 from core.services import menu_loader
 from core.services.menu_loader import MenuFile, MenuLoadError
@@ -19,7 +20,7 @@ _MAX_BYTES = 1_000_000
 
 def _success_text(menu) -> str:
     return (
-        f"✅ Меню загружено: {menu.days_count} дн. с "
+        f"{emoji.DONE} Меню загружено: {menu.days_count} дн. с "
         f"{menu.start_date.strftime('%d.%m.%Y')}."
     )
 

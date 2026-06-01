@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_shopping_list
 from config import get_settings
-from core import repositories
+from core import emoji, repositories
 from core.db import Family
 from core.services import shopping_list
 
@@ -89,11 +89,12 @@ async def cmd_list(
     items = await shopping_list.get_open_items(db_session, family_id=family.id)
     if not items:
         await message.answer(
-            "🛒 Всё куплено ✅", reply_markup=kb_shopping_list([])
+            f"{emoji.SHOPPING} Всё куплено {emoji.DONE}",
+            reply_markup=kb_shopping_list([]),
         )
         return
     await message.answer(
-        "<b>🛒 Список покупок</b>", reply_markup=kb_shopping_list(items)
+        f"<b>{emoji.SHOPPING} Список покупок</b>", reply_markup=kb_shopping_list(items)
     )
 
 
@@ -115,7 +116,7 @@ async def cb_toggle(
     open_items = await shopping_list.get_open_items(db_session, family_id=family.id)
     if not open_items:
         await cb.message.edit_text(
-            "<b>🛒 Список покупок</b>\n\nВсе пункты закрыты ✅",
+            f"<b>{emoji.SHOPPING} Список покупок</b>\n\nВсе пункты закрыты {emoji.DONE}",
             reply_markup=kb_shopping_list([]),
         )
     else:

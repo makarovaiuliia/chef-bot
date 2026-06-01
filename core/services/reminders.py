@@ -1,20 +1,20 @@
-"""Daily shopping reminder."""
+"""Open shopping-list line shown in the morning digest."""
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import repositories
+from core import emoji, repositories
 
 
 def _plural_items(n: int) -> str:
-    """Russian noun agreement for 'незакрытый пункт'."""
+    """Russian noun agreement for 'пункт'."""
     last_two = n % 100
     last = n % 10
     if 11 <= last_two <= 14:
-        return f"{n} незакрытых пунктов"
+        return f"{n} пунктов"
     if last == 1:
-        return f"{n} незакрытый пункт"
+        return f"{n} пункт"
     if 2 <= last <= 4:
-        return f"{n} незакрытых пункта"
-    return f"{n} незакрытых пунктов"
+        return f"{n} пункта"
+    return f"{n} пунктов"
 
 
 async def build_shopping_reminder(
@@ -23,4 +23,4 @@ async def build_shopping_reminder(
     items = await repositories.get_open_shopping_items(session, family_id=family_id)
     if not items:
         return None
-    return f"🛒 В списке покупок ещё {_plural_items(len(items))}. /list"
+    return f"{emoji.SHOPPING} В списке покупок {_plural_items(len(items))} → /list"

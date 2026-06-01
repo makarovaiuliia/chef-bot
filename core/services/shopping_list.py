@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import repositories
+from core import emoji, repositories
 from core.db import FamilyMember, ShoppingItem, Store
 
 
@@ -17,7 +17,7 @@ def build_add_notifications(
     """
     if vova_id is None or adder_id != vova_id or not names:
         return []
-    text = f"🛒 Вова добавил в список: {', '.join(names)}"
+    text = f"{emoji.SHOPPING} Вова добавил в список: {', '.join(names)}"
     return [
         (m.telegram_user_id, text)
         for m in members

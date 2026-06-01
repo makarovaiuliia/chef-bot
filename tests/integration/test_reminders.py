@@ -30,5 +30,4 @@ async def test_reminder_skips_bought_items(db_session):
 
     text = await reminders.build_shopping_reminder(db_session, family_id=family.id)
 
-    assert text is not None
-    assert "1 незакрытый пункт" in text
+    assert text == "🛒 В списке покупок 1 пункт → /list"
