@@ -37,18 +37,14 @@ def configure_logging(level: str) -> None:
     logger.add(sys.stderr, level=level)
 
 
-async def main() -> None:
-    settings = get_settings()
-    configure_logging(settings.log_level)
-
-    bot = Bot(
-        token=settings.bot_token.get_secret_value(),
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
+def create_dispatcher() -> Dispatcher:
+    """Собирает Dispatcher с middleware и роутерами (без сайд-эффектов Telegram API)."""
     dp = Dispatcher()
 
-    dp.message.middleware(FamilyResolverMiddleware())
-    dp.callback_query.middleware(FamilyResolverMiddleware())
+    # ВАЖНО: именно outer — фильтры (HasFamily/IsAdmin) читают family из data,
+    # а inner-middleware выполняется уже ПОСЛЕ проверки фильтров.
+    dp.message.outer_middleware(FamilyResolverMiddleware())
+    dp.callback_query.outer_middleware(FamilyResolverMiddleware())
 
     dp.include_router(family_handler.router)  # deep-link join + /family, /invite — ПЕРВЫМ
     dp.include_router(start_handler.router)  # /start, /help
@@ -58,6 +54,18 @@ async def main() -> None:
     dp.include_router(load_handler.router)
     dp.include_router(freetext_handler.router)  # HasFamily: catch-all для «семейных»
     dp.include_router(onboarding_handler.router)  # FSM + fallback для юзеров без семьи — ПОСЛЕДНИЙ
+    return dp
+
+
+async def main() -> None:
+    settings = get_settings()
+    configure_logging(settings.log_level)
+
+    bot = Bot(
+        token=settings.bot_token.get_secret_value(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+    dp = create_dispatcher()
 
     await bot.set_my_commands(BOT_COMMANDS)
     scheduler_tasks = start_scheduler(bot, get_sessionmaker())
