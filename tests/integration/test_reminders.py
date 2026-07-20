@@ -1,15 +1,29 @@
 from core.services import reminders, shopping_list
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_reminder_none_when_empty(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     text = await reminders.build_shopping_reminder(db_session, family_id=family.id)
     assert text is None
 
 
 async def test_reminder_counts_open_items(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     for name in ["молоко", "хлеб", "сыр"]:
         await shopping_list.add_manual_item(db_session, family_id=family.id, name=name)
 
@@ -21,12 +35,21 @@ async def test_reminder_counts_open_items(db_session):
 
 
 async def test_reminder_skips_bought_items(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     items = [
         await shopping_list.add_manual_item(db_session, family_id=family.id, name=n)
         for n in ["молоко", "хлеб"]
     ]
-    await shopping_list.toggle_bought(db_session, item_id=items[0].id)
+    await shopping_list.toggle_bought(
+        db_session, item_id=items[0].id, family_id=family.id
+    )
 
     text = await reminders.build_shopping_reminder(db_session, family_id=family.id)
 

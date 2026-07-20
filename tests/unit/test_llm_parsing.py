@@ -1,7 +1,20 @@
 import pytest
 
 from core.exceptions import LLMInvalidResponse
-from core.llm import parse_json_response
+from core.llm import build_system_blocks, parse_json_response
+
+
+def test_build_system_blocks_uses_profile():
+    blocks = build_system_blocks("recipe", profile_md="# Семья\nБез лука.")
+    assert len(blocks) == 2
+    assert "Без лука" in blocks[1]["text"]
+    assert blocks[0]["cache_control"] == {"type": "ephemeral"}
+    assert blocks[1]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_build_system_blocks_empty_profile_placeholder():
+    blocks = build_system_blocks("recipe", profile_md="")
+    assert "не заполнен" in blocks[1]["text"]
 
 
 def test_plain_json():

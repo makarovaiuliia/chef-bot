@@ -5,11 +5,18 @@ from core import repositories
 from core.db import ProteinKind
 from core.llm import LLMResponse
 from core.services import dish_replacer
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_replace_meal_swaps_dish(db_session, monkeypatch):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     menu = await repositories.create_draft_menu(
         db_session,
         family_id=family.id,
@@ -38,6 +45,8 @@ async def test_replace_meal_swaps_dish(db_session, monkeypatch):
     )
     monkeypatch.setattr(dish_replacer, "get_llm_client", lambda: fake_client)
 
-    meal = await dish_replacer.replace_meal(db_session, meal_id=meal_id, hint="с рыбой")
+    meal = await dish_replacer.replace_meal(
+        db_session, meal_id=meal_id, hint="с рыбой", profile_md="тестовый профиль"
+    )
     assert meal.dish_name == "Жареный лосось"
     assert meal.protein_kind == ProteinKind.fish

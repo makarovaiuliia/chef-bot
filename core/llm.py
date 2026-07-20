@@ -78,17 +78,18 @@ class LLMClient:
         )
 
 
-def build_system_blocks(task_prompt_name: str) -> list[dict]:
-    """base_context (cached) + task-specific prompt (cached)."""
+def build_system_blocks(task_prompt_name: str, *, profile_md: str) -> list[dict]:
+    """Task prompt (cached) + per-family profile (cached)."""
+    profile_text = profile_md.strip() or "(профиль семьи не заполнен)"
     return [
         {
             "type": "text",
-            "text": load_prompt("base_context"),
+            "text": load_prompt(task_prompt_name),
             "cache_control": {"type": "ephemeral"},
         },
         {
             "type": "text",
-            "text": load_prompt(task_prompt_name),
+            "text": f"# Контекст семьи\n\n{profile_text}",
             "cache_control": {"type": "ephemeral"},
         },
     ]

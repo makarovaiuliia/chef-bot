@@ -119,7 +119,12 @@ TOOL_SCHEMAS: list[dict] = [
 
 
 async def execute_tool(
-    session: AsyncSession, *, family_id: int, name: str, input: dict[str, Any]
+    session: AsyncSession,
+    *,
+    family_id: int,
+    name: str,
+    input: dict[str, Any],
+    profile_md: str,
 ) -> str:
     """Dispatch a tool call. Returns string result for the LLM."""
     if name == "get_active_menu":
@@ -127,9 +132,9 @@ async def execute_tool(
     if name == "get_meals_for_date":
         return await _tool_get_meals_for_date(session, family_id, input["date"])
     if name == "replace_meal":
-        return await _tool_replace_meal(session, family_id, input)
+        return await _tool_replace_meal(session, family_id, input, profile_md)
     if name == "get_recipe_for_meal":
-        return await _tool_get_recipe_for_meal(session, family_id, input)
+        return await _tool_get_recipe_for_meal(session, family_id, input, profile_md)
     if name == "add_shopping_item":
         return await _tool_add_shopping_item(session, family_id, input)
     if name == "mark_shopping_item_bought":
@@ -175,7 +180,7 @@ async def _tool_get_meals_for_date(
 
 
 async def _tool_replace_meal(
-    session: AsyncSession, family_id: int, input: dict
+    session: AsyncSession, family_id: int, input: dict, profile_md: str
 ) -> str:
     try:
         d = DateType.fromisoformat(input["date"])
@@ -186,7 +191,7 @@ async def _tool_replace_meal(
     if target is None:
         return f"Не нашёл {input['slot']} на {input['date']} в активном меню."
     new_meal = await dish_replacer.replace_meal(
-        session, meal_id=target.id, hint=input.get("hint")
+        session, meal_id=target.id, hint=input.get("hint"), profile_md=profile_md
     )
     result = f"Заменил {input['slot']} {input['date']} на: {new_meal.dish_name}"
     if new_meal.side_dishes:
@@ -195,7 +200,7 @@ async def _tool_replace_meal(
 
 
 async def _tool_get_recipe_for_meal(
-    session: AsyncSession, family_id: int, input: dict
+    session: AsyncSession, family_id: int, input: dict, profile_md: str
 ) -> str:
     try:
         d = DateType.fromisoformat(input["date"])
@@ -205,7 +210,7 @@ async def _tool_get_recipe_for_meal(
     target = next((m for m in meals if m.slot.value == input["slot"]), None)
     if target is None:
         return f"Не нашёл {input['slot']} на {input['date']} в активном меню."
-    recipe = await recipe_service.get_recipe(session, meal_id=target.id)
+    recipe = await recipe_service.get_recipe(session, meal_id=target.id, profile_md=profile_md)
     return recipe.content_md
 
 

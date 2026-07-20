@@ -2,10 +2,6 @@ class ChefBotError(Exception):
     """Base exception."""
 
 
-class NotAuthorized(ChefBotError):
-    """Telegram user is not in allowlist."""
-
-
 class FamilyNotFound(ChefBotError):
     pass
 
@@ -23,4 +19,20 @@ class LLMError(ChefBotError):
 
 
 class LLMInvalidResponse(LLMError):
+    pass
+
+
+class FamilyError(Exception):
+    """Base for family-domain errors."""
+
+
+class InvalidInviteCode(FamilyError):
+    pass
+
+
+class AlreadyInFamily(FamilyError):
+    pass
+
+
+class MemberNotInFamily(FamilyError):
     pass

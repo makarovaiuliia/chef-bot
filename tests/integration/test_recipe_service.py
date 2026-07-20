@@ -4,11 +4,18 @@ from unittest.mock import AsyncMock
 from core import repositories
 from core.llm import LLMResponse
 from core.services import recipe_service
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_get_recipe_generates_and_caches(db_session, monkeypatch):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     menu = await repositories.create_draft_menu(
         db_session,
         family_id=family.id,
@@ -37,11 +44,15 @@ async def test_get_recipe_generates_and_caches(db_session, monkeypatch):
     )
     monkeypatch.setattr(recipe_service, "get_llm_client", lambda: fake_client)
 
-    recipe1 = await recipe_service.get_recipe(db_session, meal_id=meal_id)
+    recipe1 = await recipe_service.get_recipe(
+        db_session, meal_id=meal_id, profile_md="тестовый профиль"
+    )
     assert "Курица" in recipe1.content_md
     assert recipe1.prep_minutes == 30
 
     fake_client.chat.reset_mock()
-    recipe2 = await recipe_service.get_recipe(db_session, meal_id=meal_id)
+    recipe2 = await recipe_service.get_recipe(
+        db_session, meal_id=meal_id, profile_md="тестовый профиль"
+    )
     assert recipe2.id == recipe1.id
     fake_client.chat.assert_not_called()

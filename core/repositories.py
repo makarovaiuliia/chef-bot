@@ -2,13 +2,14 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from datetime import date as DateType
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.db import (
     ClaudeConversation,
     FamilyMember,
+    LlmUsage,
     Meal,
     MealSlot,
     Menu,
@@ -228,9 +229,12 @@ async def get_open_shopping_items(
 
 
 async def get_shopping_item(
-    session: AsyncSession, item_id: int
+    session: AsyncSession, item_id: int, *, family_id: int
 ) -> ShoppingItem | None:
-    return await session.get(ShoppingItem, item_id)
+    stmt = select(ShoppingItem).where(
+        ShoppingItem.id == item_id, ShoppingItem.family_id == family_id
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
 
 
 async def mark_shopping_item_bought(
@@ -266,6 +270,36 @@ async def append_conversation(
         )
     )
     await session.flush()
+
+
+async def log_llm_usage(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    operation: str,
+    tokens_in: int,
+    tokens_out: int,
+) -> None:
+    session.add(
+        LlmUsage(
+            family_id=family_id,
+            operation=operation,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+        )
+    )
+    await session.flush()
+
+
+async def count_llm_operations(
+    session: AsyncSession, *, family_id: int, operation: str
+) -> int:
+    result = await session.execute(
+        select(func.count())
+        .select_from(LlmUsage)
+        .where(LlmUsage.family_id == family_id, LlmUsage.operation == operation)
+    )
+    return int(result.scalar_one())
 
 
 async def recent_conversation(

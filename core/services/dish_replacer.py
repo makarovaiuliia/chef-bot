@@ -22,7 +22,7 @@ class _ReplacementSchema(BaseModel):
 
 
 async def replace_meal(
-    session: AsyncSession, *, meal_id: int, hint: str | None
+    session: AsyncSession, *, meal_id: int, hint: str | None, profile_md: str
 ) -> Meal:
     meal = await repositories.get_meal(session, meal_id)
     if meal is None:
@@ -38,7 +38,7 @@ async def replace_meal(
 
     llm = get_llm_client()
     resp = await llm.chat(
-        system_blocks=build_system_blocks("dish_replacer"),
+        system_blocks=build_system_blocks("dish_replacer", profile_md=profile_md),
         messages=[{"role": "user", "content": user_msg}],
         max_tokens=512,
     )

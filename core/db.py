@@ -18,6 +18,8 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy import false as sa_false
+from sqlalchemy import true as sa_true
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -46,8 +48,14 @@ class MenuStatus(enum.StrEnum):
 
 
 class MealSlot(enum.StrEnum):
+    breakfast = "breakfast"
     lunch = "lunch"
     dinner = "dinner"
+
+
+class MemberRole(enum.StrEnum):
+    admin = "admin"
+    member = "member"
 
 
 class ProteinKind(enum.StrEnum):
@@ -58,14 +66,6 @@ class ProteinKind(enum.StrEnum):
     pork = "pork"
     vegetarian = "vegetarian"
     mixed = "mixed"
-
-
-class Store(enum.StrEnum):
-    makro = "makro"
-    villa = "villa"
-    lotus = "lotus"
-    seven_eleven = "seven_eleven"
-    other = "other"
 
 
 class MessageRole(enum.StrEnum):
@@ -79,6 +79,20 @@ class Family(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str | None] = mapped_column(String(200))
+    profile_md: Mapped[str | None] = mapped_column(Text)
+    timezone: Mapped[str] = mapped_column(
+        String(64), default="UTC", server_default="UTC", nullable=False
+    )
+    digest_hour: Mapped[int] = mapped_column(
+        Integer, default=9, server_default="9", nullable=False
+    )
+    digest_enabled: Mapped[bool] = mapped_column(
+        default=True, server_default=sa_true(), nullable=False
+    )
+    plan_slots: Mapped[list[str]] = mapped_column(
+        JSON, default=lambda: ["lunch", "dinner"], nullable=False
+    )
+    invite_code: Mapped[str | None] = mapped_column(String(32), unique=True)
     created_at: Mapped[CreatedAt]
 
     members: Mapped[list["FamilyMember"]] = relationship(
@@ -93,6 +107,15 @@ class FamilyMember(Base):
     family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
     telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(200))
+    role: Mapped[MemberRole] = mapped_column(
+        Enum(MemberRole, native_enum=False, length=10),
+        default=MemberRole.member,
+        server_default="member",
+        nullable=False,
+    )
+    can_plan: Mapped[bool] = mapped_column(
+        default=False, server_default=sa_false(), nullable=False
+    )
     created_at: Mapped[CreatedAt]
 
     family: Mapped["Family"] = relationship(back_populates="members")
@@ -168,11 +191,24 @@ class ShoppingItem(Base):
     family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     quantity: Mapped[str] = mapped_column(String(100), default="", nullable=False)
-    store: Mapped[Store] = mapped_column(
-        Enum(Store), default=Store.other, nullable=False
-    )
+    store: Mapped[str | None] = mapped_column(String(100))
     bought: Mapped[bool] = mapped_column(default=False, nullable=False)
     bought_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[CreatedAt]
+
+
+class LlmUsage(Base):
+    """Учёт LLM-операций per family: триал-лимиты считаются по этой таблице."""
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
+    operation: Mapped[str] = mapped_column(
+        String(30), nullable=False
+    )  # menu_gen|replace|recipe|profile
+    tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[CreatedAt]
 
 

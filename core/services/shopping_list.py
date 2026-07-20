@@ -1,27 +1,23 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import emoji, repositories
-from core.db import FamilyMember, ShoppingItem, Store
+from core.db import FamilyMember, ShoppingItem
 
 
-def build_add_notifications(
-    *,
-    adder_id: int,
-    vova_id: int | None,
+def build_added_notifications(
+    adder: FamilyMember,
     members: list[FamilyMember],
     names: list[str],
 ) -> list[tuple[int, str]]:
-    """When Вова adds items, build (telegram_id, text) pairs for every other member.
-
-    Returns [] unless the adder is Вова and there is something to announce.
-    """
-    if vova_id is None or adder_id != vova_id or not names:
+    """(telegram_id, text) для всех членов семьи, кроме добавившего."""
+    if not names:
         return []
-    text = f"{emoji.SHOPPING} Вова добавил в список: {', '.join(names)}"
+    who = adder.display_name or "Кто-то"
+    text = f"{emoji.SHOPPING} {who} добавил в список: {', '.join(names)}"
     return [
         (m.telegram_user_id, text)
         for m in members
-        if m.telegram_user_id != vova_id
+        if m.telegram_user_id != adder.telegram_user_id
     ]
 
 
@@ -32,9 +28,9 @@ async def get_open_items(
 
 
 async def toggle_bought(
-    session: AsyncSession, *, item_id: int
+    session: AsyncSession, *, item_id: int, family_id: int
 ) -> ShoppingItem | None:
-    item = await repositories.get_shopping_item(session, item_id)
+    item = await repositories.get_shopping_item(session, item_id, family_id=family_id)
     if item is None:
         return None
     return await repositories.mark_shopping_item_bought(
@@ -48,7 +44,7 @@ async def add_manual_item(
     family_id: int,
     name: str,
     quantity: str = "",
-    store: Store = Store.other,
+    store: str | None = None,
 ) -> ShoppingItem:
     """Add a standalone shopping item (not bound to any menu's shopping_list)."""
     item = ShoppingItem(
