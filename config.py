@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     bot_token: SecretStr
     anthropic_api_key: SecretStr
-    vova_telegram_id: int | None = None
     db_url: str = "sqlite+aiosqlite:///./data/chef.db"
     timezone: str = "Asia/Bangkok"
     log_level: str = "INFO"

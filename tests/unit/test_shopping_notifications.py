@@ -1,49 +1,20 @@
 from core.db import FamilyMember
-from core.services.shopping_list import build_add_notifications
-
-VOVA = 100
-JULIA = 200
+from core.services.shopping_list import build_added_notifications
 
 
-def _member(uid: int) -> FamilyMember:
-    return FamilyMember(family_id=1, telegram_user_id=uid, display_name=None)
+def _member(tg_id: int, name: str) -> FamilyMember:
+    return FamilyMember(family_id=1, telegram_user_id=tg_id, display_name=name)
 
 
-def test_no_notifications_when_adder_is_not_vova():
-    members = [_member(VOVA), _member(JULIA)]
-    result = build_add_notifications(
-        adder_id=JULIA, vova_id=VOVA, members=members, names=["молоко"]
-    )
-    assert result == []
+def test_notifies_everyone_except_adder():
+    adder = _member(1, "Вова")
+    members = [adder, _member(2, "Юля"), _member(3, "Мама")]
+    pairs = build_added_notifications(adder, members, ["молоко", "хлеб"])
+    ids = [tg for tg, _ in pairs]
+    assert ids == [2, 3]
+    assert all("Вова добавил в список: молоко, хлеб" in text for _, text in pairs)
 
 
-def test_no_notifications_when_vova_id_not_configured():
-    members = [_member(VOVA), _member(JULIA)]
-    result = build_add_notifications(
-        adder_id=VOVA, vova_id=None, members=members, names=["молоко"]
-    )
-    assert result == []
-
-
-def test_no_notifications_when_names_empty():
-    members = [_member(VOVA), _member(JULIA)]
-    result = build_add_notifications(
-        adder_id=VOVA, vova_id=VOVA, members=members, names=[]
-    )
-    assert result == []
-
-
-def test_notifies_other_members_excluding_vova():
-    members = [_member(VOVA), _member(JULIA)]
-    result = build_add_notifications(
-        adder_id=VOVA, vova_id=VOVA, members=members, names=["молоко"]
-    )
-    assert result == [(JULIA, "🛒 Вова добавил в список: молоко")]
-
-
-def test_joins_multiple_names():
-    members = [_member(VOVA), _member(JULIA)]
-    result = build_add_notifications(
-        adder_id=VOVA, vova_id=VOVA, members=members, names=["молоко", "хлеб"]
-    )
-    assert result == [(JULIA, "🛒 Вова добавил в список: молоко, хлеб")]
+def test_no_names_no_notifications():
+    adder = _member(1, "Вова")
+    assert build_added_notifications(adder, [adder, _member(2, "Юля")], []) == []

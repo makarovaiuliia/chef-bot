@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.handlers import family as family_handler
 from bot.handlers import freetext as freetext_handler
 from bot.handlers import load as load_handler
 from bot.handlers import menu as menu_handler
@@ -49,6 +50,7 @@ async def main() -> None:
     dp.message.middleware(FamilyResolverMiddleware())
     dp.callback_query.middleware(FamilyResolverMiddleware())
 
+    dp.include_router(family_handler.router)  # deep-link join + /family, /invite — ПЕРВЫМ
     dp.include_router(start_handler.router)  # /start, /help
     dp.include_router(profile_handler.router)
     dp.include_router(menu_handler.router)

@@ -6,9 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_shopping_list
-from config import get_settings
 from core import emoji, repositories
-from core.db import Family
+from core.db import Family, FamilyMember
 from core.services import shopping_list
 
 router = Router()
@@ -25,7 +24,11 @@ def _split_names(text: str) -> list[str]:
 
 
 async def _add_items(
-    message: Message, family: Family, db_session: AsyncSession, names: list[str]
+    message: Message,
+    family: Family,
+    family_member: FamilyMember,
+    db_session: AsyncSession,
+    names: list[str],
 ) -> None:
     for name in names:
         await shopping_list.add_manual_item(
@@ -37,26 +40,25 @@ async def _add_items(
         bullets = "\n".join(f"• {n}" for n in names)
         await message.answer(f"Добавил:\n{bullets}")
 
-    await _notify_vova_added(message, family, db_session, names)
+    await _notify_added(message, family, family_member, db_session, names)
 
 
-async def _notify_vova_added(
-    message: Message, family: Family, db_session: AsyncSession, names: list[str]
+async def _notify_added(
+    message: Message,
+    family: Family,
+    family_member: FamilyMember,
+    db_session: AsyncSession,
+    names: list[str],
 ) -> None:
-    """If Вова added the items, ping every other family member."""
-    vova_id = get_settings().vova_telegram_id
-    if not vova_id or message.from_user is None or message.from_user.id != vova_id:
-        return
+    """Ping every other family member that someone added items to the list."""
     members = await repositories.get_family_members(db_session, family.id)
-    for uid, text in shopping_list.build_add_notifications(
-        adder_id=message.from_user.id, vova_id=vova_id, members=members, names=names
-    ):
+    for uid, text in shopping_list.build_added_notifications(family_member, members, names):
         await message.bot.send_message(uid, md_to_telegram_html(text))
 
 
 @router.message(Command("add"))
 async def cmd_add(
-    message: Message, family: Family, db_session: AsyncSession
+    message: Message, family: Family, family_member: FamilyMember, db_session: AsyncSession
 ) -> None:
     text = (message.text or "").removeprefix("/add").strip()
     if not text:
@@ -69,20 +71,20 @@ async def cmd_add(
     if not names:
         await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
         return
-    await _add_items(message, family, db_session, names)
+    await _add_items(message, family, family_member, db_session, names)
 
 
 @router.message(
     F.reply_to_message.from_user.is_bot & (F.reply_to_message.text == _ADD_PROMPT)
 )
 async def handle_add_reply(
-    message: Message, family: Family, db_session: AsyncSession
+    message: Message, family: Family, family_member: FamilyMember, db_session: AsyncSession
 ) -> None:
     names = _split_names(message.text or "")
     if not names:
         await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
         return
-    await _add_items(message, family, db_session, names)
+    await _add_items(message, family, family_member, db_session, names)
 
 
 @router.message(Command("list"))
