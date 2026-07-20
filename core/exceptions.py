@@ -36,3 +36,7 @@ class InvalidInviteCode(FamilyError):
 
 class AlreadyInFamily(FamilyError):
     pass
+
+
+class MemberNotInFamily(FamilyError):
+    pass

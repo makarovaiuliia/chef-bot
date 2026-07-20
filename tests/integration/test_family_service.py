@@ -1,6 +1,6 @@
 import pytest
 
-from core.exceptions import AlreadyInFamily, InvalidInviteCode
+from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
 from core.services.family_service import (
     create_family,
     get_admin,
@@ -79,6 +79,18 @@ async def test_set_can_plan_and_transfer_admin(db_session):
     current_admin = await get_admin(db_session, family_id=family.id)
     assert current_admin.id == joined.id
     assert not is_admin(admin)
+
+
+async def test_transfer_admin_rejects_member_from_other_family(db_session):
+    family, admin = await _make_family(db_session, tg_id=111)
+    _other_family, other_member = await _make_family(db_session, tg_id=333)
+
+    with pytest.raises(MemberNotInFamily):
+        await transfer_admin(db_session, family_id=family.id, to_member_id=other_member.id)
+
+    current_admin = await get_admin(db_session, family_id=family.id)
+    assert current_admin.id == admin.id
+    assert is_admin(admin)
 
 
 async def test_regenerate_invite_changes_code(db_session):

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import Family, FamilyMember, MemberRole
-from core.exceptions import AlreadyInFamily, InvalidInviteCode
+from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
 
 
 def _new_invite_code() -> str:
@@ -120,12 +120,19 @@ async def get_admin(session: AsyncSession, *, family_id: int) -> FamilyMember | 
 async def transfer_admin(
     session: AsyncSession, *, family_id: int, to_member_id: int
 ) -> None:
+    new_admin = (
+        await session.execute(
+            select(FamilyMember).where(
+                FamilyMember.id == to_member_id,
+                FamilyMember.family_id == family_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if new_admin is None:
+        raise MemberNotInFamily
     current = await get_admin(session, family_id=family_id)
     if current is not None:
         current.role = MemberRole.member
-    new_admin = (
-        await session.execute(select(FamilyMember).where(FamilyMember.id == to_member_id))
-    ).scalar_one()
     new_admin.role = MemberRole.admin
     new_admin.can_plan = True
     await session.flush()
