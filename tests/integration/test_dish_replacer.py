@@ -45,6 +45,8 @@ async def test_replace_meal_swaps_dish(db_session, monkeypatch):
     )
     monkeypatch.setattr(dish_replacer, "get_llm_client", lambda: fake_client)
 
-    meal = await dish_replacer.replace_meal(db_session, meal_id=meal_id, hint="с рыбой")
+    meal = await dish_replacer.replace_meal(
+        db_session, meal_id=meal_id, hint="с рыбой", profile_md="тестовый профиль"
+    )
     assert meal.dish_name == "Жареный лосось"
     assert meal.protein_kind == ProteinKind.fish

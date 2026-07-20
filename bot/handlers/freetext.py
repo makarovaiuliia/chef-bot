@@ -32,6 +32,7 @@ async def handle_free_text(
             family_id=family.id,
             telegram_user_id=family_member.telegram_user_id,
             text=message.text,
+            profile_md=family.profile_md or "",
         )
     except Exception as e:
         logger.exception("conversation failure: {}", e)

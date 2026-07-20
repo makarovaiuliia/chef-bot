@@ -33,6 +33,7 @@ async def test_handle_message_no_tool_call(db_session, monkeypatch):
         family_id=family.id,
         telegram_user_id=111,
         text="Привет",
+        profile_md="тестовый профиль",
     )
     assert reply == "Привет! Чем помочь?"
 
@@ -82,6 +83,7 @@ async def test_handle_message_uses_tool(db_session, monkeypatch):
         family_id=family.id,
         telegram_user_id=111,
         text="что в меню?",
+        profile_md="тестовый профиль",
     )
     assert "курица" in reply.lower()
     assert fake_client.chat.call_count == 2

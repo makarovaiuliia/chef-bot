@@ -15,7 +15,7 @@ def get_llm_client() -> LLMClient:
     return LLMClient()
 
 
-async def get_recipe(session: AsyncSession, *, meal_id: int) -> Recipe:
+async def get_recipe(session: AsyncSession, *, meal_id: int, profile_md: str) -> Recipe:
     """Return cached recipe or generate via LLM."""
     cached = await repositories.get_recipe(session, meal_id)
     if cached is not None:
@@ -32,7 +32,7 @@ async def get_recipe(session: AsyncSession, *, meal_id: int) -> Recipe:
     )
     llm = get_llm_client()
     resp = await llm.chat(
-        system_blocks=build_system_blocks("recipe"),
+        system_blocks=build_system_blocks("recipe", profile_md=profile_md),
         messages=[{"role": "user", "content": user_msg}],
         max_tokens=2048,
     )

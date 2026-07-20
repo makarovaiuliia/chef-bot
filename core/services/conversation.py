@@ -23,6 +23,7 @@ async def handle_message(
     family_id: int,
     telegram_user_id: int,
     text: str,
+    profile_md: str,
 ) -> str:
     """Run tool-use loop. Persist user + assistant + tool turns. Return final reply."""
     await repositories.append_conversation(
@@ -55,7 +56,7 @@ async def handle_message(
     for _ in range(MAX_TOOL_ITERATIONS):
         try:
             resp = await llm.chat(
-                system_blocks=build_system_blocks("conversation"),
+                system_blocks=build_system_blocks("conversation", profile_md=profile_md),
                 messages=messages,
                 tools=tools.TOOL_SCHEMAS,
                 max_tokens=2048,
@@ -86,7 +87,11 @@ async def handle_message(
         for tc in resp.tool_calls:
             try:
                 result = await tools.execute_tool(
-                    session, family_id=family_id, name=tc["name"], input=tc["input"]
+                    session,
+                    family_id=family_id,
+                    name=tc["name"],
+                    input=tc["input"],
+                    profile_md=profile_md,
                 )
             except Exception as e:
                 logger.exception("tool {} failed: {}", tc["name"], e)
