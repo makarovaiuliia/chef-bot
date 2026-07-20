@@ -26,7 +26,7 @@ BOT_COMMANDS = [
     BotCommand(command="list", description="Список покупок"),
     BotCommand(command="add", description="Добавить пункт в список"),
     BotCommand(command="profile", description="Профиль семьи"),
-    BotCommand(command="family", description="Управление семьёй"),
+    BotCommand(command="family", description="Управление семьей"),
     BotCommand(command="invite", description="Пригласить в семью"),
     BotCommand(command="help", description="Справка"),
 ]

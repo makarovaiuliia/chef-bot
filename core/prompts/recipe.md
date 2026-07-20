@@ -11,7 +11,7 @@
 {
   "content_md": "Текст рецепта в формате Telegram HTML (см. ниже)",
   "ingredients": [
-    {"name": "Куриные бёдра", "quantity": "500", "unit": "г", "store": "Makro"}
+    {"name": "Куриные бедра", "quantity": "500", "unit": "г", "store": "Makro"}
   ],
   "prep_minutes": 30
 }
@@ -19,7 +19,7 @@
 
 ## Формат content_md (Telegram HTML)
 
-Сообщение пойдёт в Telegram с parse_mode=HTML. Используй ТОЛЬКО эти теги:
+Сообщение пойдет в Telegram с parse_mode=HTML. Используй ТОЛЬКО эти теги:
 `<b>`, `<i>`. Никаких `<h1>/<h2>/<p>/<br>/<ul>/<li>`, никаких markdown-заголовков
 (`#`, `##`), таблиц (`|`), разделителей (`---`), цитат (`>`), КБЖУ-блоков.
 

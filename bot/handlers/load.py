@@ -60,7 +60,7 @@ async def handle_menu_file(
         return
     except Exception as e:
         logger.exception("menu preview failed: {}", e)
-        await message.answer("Не получилось загрузить меню. Попробуй ещё раз.")
+        await message.answer("Не получилось загрузить меню. Попробуй еще раз.")
         return
 
     if not preview.conflicting_dates:
@@ -73,7 +73,7 @@ async def handle_menu_file(
             )
         except Exception as e:
             logger.exception("menu commit failed: {}", e)
-            await message.answer("Не получилось загрузить меню. Попробуй ещё раз.")
+            await message.answer("Не получилось загрузить меню. Попробуй еще раз.")
             return
         await message.answer(_success_text(menu))
         return
@@ -101,7 +101,7 @@ async def cb_load_yes(
     parsed_json = data.get("parsed_json")
     await state.clear()
     if not parsed_json:
-        await cb.message.edit_text("Не нашёл данные загрузки. Пришли файл ещё раз.")
+        await cb.message.edit_text("Не нашел данные загрузки. Пришли файл еще раз.")
         await cb.answer()
         return
     parsed = MenuFile.model_validate_json(parsed_json)
@@ -112,7 +112,7 @@ async def cb_load_yes(
         )
     except Exception as e:
         logger.exception("menu commit failed: {}", e)
-        await cb.message.edit_text("Не получилось загрузить меню. Попробуй ещё раз.")
+        await cb.message.edit_text("Не получилось загрузить меню. Попробуй еще раз.")
         await cb.answer()
         return
     await cb.message.edit_text(_success_text(menu))

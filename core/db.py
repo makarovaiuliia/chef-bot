@@ -198,7 +198,7 @@ class ShoppingItem(Base):
 
 
 class LlmUsage(Base):
-    """Учёт LLM-операций per family: триал-лимиты считаются по этой таблице."""
+    """Учет LLM-операций per family: триал-лимиты считаются по этой таблице."""
 
     __tablename__ = "llm_usage"
 

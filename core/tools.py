@@ -21,7 +21,7 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "name": "get_active_menu",
         "description": (
-            "Возвращает текущее активное меню семьи (список блюд с датами и приёмами). "
+            "Возвращает текущее активное меню семьи (список блюд с датами и приемами). "
             "Используй когда пользователь спрашивает 'что у нас в меню', 'какое меню сейчас'."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
@@ -71,7 +71,7 @@ TOOL_SCHEMAS: list[dict] = [
         "name": "get_recipe_for_meal",
         "description": (
             "Возвращает подробный рецепт блюда из активного меню. "
-            "Используй когда пользователь просит рецепт конкретного приёма "
+            "Используй когда пользователь просит рецепт конкретного приема "
             "('дай рецепт сегодняшнего ужина', 'как готовить четверг обед')."
         ),
         "input_schema": {
@@ -109,7 +109,7 @@ TOOL_SCHEMAS: list[dict] = [
             "properties": {
                 "name_substring": {
                     "type": "string",
-                    "description": "Часть названия пункта (бот сам найдёт по подстроке)",
+                    "description": "Часть названия пункта (бот сам найдет по подстроке)",
                 }
             },
             "required": ["name_substring"],
@@ -189,7 +189,7 @@ async def _tool_replace_meal(
     meals = await repositories.get_meals_for_date(session, family_id, d)
     target = next((m for m in meals if m.slot.value == input["slot"]), None)
     if target is None:
-        return f"Не нашёл {input['slot']} на {input['date']} в активном меню."
+        return f"Не нашел {input['slot']} на {input['date']} в активном меню."
     new_meal = await dish_replacer.replace_meal(
         session, meal_id=target.id, hint=input.get("hint"), profile_md=profile_md
     )
@@ -209,7 +209,7 @@ async def _tool_get_recipe_for_meal(
     meals = await repositories.get_meals_for_date(session, family_id, d)
     target = next((m for m in meals if m.slot.value == input["slot"]), None)
     if target is None:
-        return f"Не нашёл {input['slot']} на {input['date']} в активном меню."
+        return f"Не нашел {input['slot']} на {input['date']} в активном меню."
     recipe = await recipe_service.get_recipe(session, meal_id=target.id, profile_md=profile_md)
     return recipe.content_md
 
@@ -237,7 +237,7 @@ async def _tool_mark_bought(
     items = list((await session.execute(stmt)).scalars().all())
     target = next((i for i in items if substring in i.name.lower()), None)
     if target is None:
-        return f"Не нашёл незакрытый пункт со словом '{substring}'."
+        return f"Не нашел незакрытый пункт со словом '{substring}'."
     target.bought = True
     target.bought_at = datetime.now(UTC)
     await session.flush()

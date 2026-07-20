@@ -36,6 +36,6 @@ async def handle_free_text(
         )
     except Exception as e:
         logger.exception("conversation failure: {}", e)
-        await thinking.edit_text("Не получилось ответить. Попробуй ещё раз.")
+        await thinking.edit_text("Не получилось ответить. Попробуй еще раз.")
         return
     await thinking.edit_text(md_to_telegram_html(reply))

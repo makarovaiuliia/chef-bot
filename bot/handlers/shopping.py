@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
-from bot.keyboards import kb_shopping_list
+from bot.keyboards import BTN_ADD, kb_shopping_list
 from core import emoji, repositories
 from core.db import Family, FamilyMember
 from core.services import shopping_list
@@ -22,6 +22,13 @@ def _split_names(text: str) -> list[str]:
     """Split user input by commas/newlines into separate items."""
     parts = [p.strip() for p in text.replace("\n", ",").split(",")]
     return [p for p in parts if p]
+
+
+async def _ask_what_to_add(message: Message) -> None:
+    await message.answer(
+        _ADD_PROMPT,
+        reply_markup=ForceReply(input_field_placeholder="например, молоко 1 л"),
+    )
 
 
 async def _add_items(
@@ -66,14 +73,11 @@ async def cmd_add(
 ) -> None:
     text = (message.text or "").removeprefix("/add").strip()
     if not text:
-        await message.answer(
-            _ADD_PROMPT,
-            reply_markup=ForceReply(input_field_placeholder="например, молоко 1 л"),
-        )
+        await _ask_what_to_add(message)
         return
     names = _split_names(text)
     if not names:
-        await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
+        await message.answer("Не понял, что добавить. Попробуй /add еще раз.")
         return
     await _add_items(message, family, family_member, db_session, names)
 
@@ -86,7 +90,7 @@ async def handle_add_reply(
 ) -> None:
     names = _split_names(message.text or "")
     if not names:
-        await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
+        await message.answer("Не понял, что добавить. Попробуй /add еще раз.")
         return
     await _add_items(message, family, family_member, db_session, names)
 
@@ -98,7 +102,7 @@ async def cmd_list(
     items = await shopping_list.get_open_items(db_session, family_id=family.id)
     if not items:
         await message.answer(
-            f"{emoji.SHOPPING} Всё куплено {emoji.DONE}",
+            f"{emoji.SHOPPING} Все куплено {emoji.DONE}",
             reply_markup=kb_shopping_list([]),
         )
         return
@@ -109,11 +113,13 @@ async def cmd_list(
 
 @router.callback_query(F.data == "shop:add")
 async def cb_add(cb: CallbackQuery) -> None:
-    await cb.message.answer(
-        _ADD_PROMPT,
-        reply_markup=ForceReply(input_field_placeholder="например, молоко 1 л"),
-    )
+    await _ask_what_to_add(cb.message)
     await cb.answer()
+
+
+@router.message(F.text == BTN_ADD)
+async def btn_add(message: Message) -> None:
+    await _ask_what_to_add(message)
 
 
 @router.callback_query(F.data.startswith("shop:toggle:"))

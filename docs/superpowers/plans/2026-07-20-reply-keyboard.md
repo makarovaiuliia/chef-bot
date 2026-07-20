@@ -97,8 +97,10 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ### Task 2: Константы кнопок и kb_main() в keyboards.py
 
 **Files:**
-- Modify: `bot/keyboards.py`
+- Modify: `core/emoji.py`, `bot/keyboards.py`
 - Test: `tests/unit/test_main_keyboard.py` (создать)
+
+Конвенция кодовой базы: эмодзи-литералы живут ТОЛЬКО в `core/emoji.py` (single source of truth, это требование прошлого ревью). Поэтому глифы кнопок — через константы emoji.
 
 **Interfaces:**
 - Produces: `BTN_ADD = "➕ Добавить"`, `BTN_TODAY = "🍳 Сегодня"`, `BTN_FAMILY = "👨‍👩‍👧 Семья"` (str-константы) и `kb_main() -> ReplyKeyboardMarkup` в `bot/keyboards.py`. Задачи 3 и 4 импортируют их оттуда.
@@ -132,6 +134,22 @@ Expected: FAIL с `ImportError: cannot import name 'BTN_ADD'`.
 
 - [ ] **Step 3: Реализовать**
 
+В `core/emoji.py`:
+
+- добавить после `TOMORROW`:
+
+```python
+COOK = "🍳"  # кнопка «Сегодня» главной клавиатуры
+```
+
+- заменить значение `FAMILY = "👪"` на:
+
+```python
+FAMILY = "👨‍👩‍👧"
+```
+
+(глиф семьи унифицируется с кнопкой главной клавиатуры; используется также в /help и /start)
+
 В `bot/keyboards.py` заменить первую строку импорта
 
 ```python
@@ -153,9 +171,9 @@ from aiogram.types import (
 ```python
 # Постоянная reply-клавиатура с основными действиями.
 # Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
-BTN_ADD = "➕ Добавить"
-BTN_TODAY = "🍳 Сегодня"
-BTN_FAMILY = "👨‍👩‍👧 Семья"
+BTN_ADD = f"{emoji.ADD} Добавить"
+BTN_TODAY = f"{emoji.COOK} Сегодня"
+BTN_FAMILY = f"{emoji.FAMILY} Семья"
 
 
 def kb_main() -> ReplyKeyboardMarkup:
@@ -180,7 +198,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add bot/keyboards.py tests/unit/test_main_keyboard.py
+git add core/emoji.py bot/keyboards.py tests/unit/test_main_keyboard.py
 git commit -m "feat(bot): main reply keyboard constants and kb_main()
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"

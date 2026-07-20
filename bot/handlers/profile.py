@@ -7,6 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.filters import HasFamily, IsAdmin
 from bot.formatting import md_to_telegram_html
 from bot.fsm import ProfileEdit
+from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
 from core import emoji
 from core.services.family_service import get_admin, is_admin, update_profile
 
@@ -49,8 +50,13 @@ async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
     await cb.answer(f"Профиль может менять только {name}", show_alert=True)
 
 
-@router.message(ProfileEdit.waiting_text, F.text, IsAdmin())
+@router.message(
+    ProfileEdit.waiting_text,
+    F.text,
+    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    IsAdmin(),
+)
 async def on_new_text(message: Message, state: FSMContext, db_session, family) -> None:
     await update_profile(db_session, family=family, profile_md=message.text)
     await state.clear()
-    await message.answer(f"{emoji.DONE} Профиль обновлён.")
+    await message.answer(f"{emoji.DONE} Профиль обновлен.")
