@@ -42,8 +42,45 @@ async def test_toggle_bought_round_trip(db_session):
         db_session, family_id=family.id, name="молоко"
     )
 
-    toggled = await shopping_list.toggle_bought(db_session, item_id=item.id)
+    toggled = await shopping_list.toggle_bought(
+        db_session, item_id=item.id, family_id=family.id
+    )
     assert toggled.bought is True
 
     items_after = await repositories.get_open_shopping_items(db_session, family_id=family.id)
     assert items_after == []
+
+
+async def test_toggle_bought_cannot_touch_other_family_item(db_session):
+    """Regression: item_id из чужой семьи не должен переключаться (IDOR)."""
+    family_a, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="профиль A",
+        timezone="UTC",
+        plan_slots=["dinner"],
+    )
+    family_b, _ = await create_family(
+        db_session,
+        telegram_user_id=222,
+        display_name=None,
+        profile_md="профиль B",
+        timezone="UTC",
+        plan_slots=["dinner"],
+    )
+
+    item = await shopping_list.add_manual_item(
+        db_session, family_id=family_a.id, name="молоко"
+    )
+
+    result = await shopping_list.toggle_bought(
+        db_session, item_id=item.id, family_id=family_b.id
+    )
+
+    assert result is None
+    assert item.bought is False
+    items_a = await repositories.get_open_shopping_items(
+        db_session, family_id=family_a.id
+    )
+    assert [i.id for i in items_a] == [item.id]

@@ -28,9 +28,9 @@ async def get_open_items(
 
 
 async def toggle_bought(
-    session: AsyncSession, *, item_id: int
+    session: AsyncSession, *, item_id: int, family_id: int
 ) -> ShoppingItem | None:
-    item = await repositories.get_shopping_item(session, item_id)
+    item = await repositories.get_shopping_item(session, item_id, family_id=family_id)
     if item is None:
         return None
     return await repositories.mark_shopping_item_bought(

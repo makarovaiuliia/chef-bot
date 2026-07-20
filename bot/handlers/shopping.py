@@ -117,7 +117,7 @@ async def cb_toggle(
     cb: CallbackQuery, family: Family, db_session: AsyncSession
 ) -> None:
     item_id = int(cb.data.split(":")[2])
-    await shopping_list.toggle_bought(db_session, item_id=item_id)
+    await shopping_list.toggle_bought(db_session, item_id=item_id, family_id=family.id)
     open_items = await shopping_list.get_open_items(db_session, family_id=family.id)
     if not open_items:
         await cb.message.edit_text(

@@ -47,7 +47,9 @@ async def test_reminder_skips_bought_items(db_session):
         await shopping_list.add_manual_item(db_session, family_id=family.id, name=n)
         for n in ["молоко", "хлеб"]
     ]
-    await shopping_list.toggle_bought(db_session, item_id=items[0].id)
+    await shopping_list.toggle_bought(
+        db_session, item_id=items[0].id, family_id=family.id
+    )
 
     text = await reminders.build_shopping_reminder(db_session, family_id=family.id)
 
