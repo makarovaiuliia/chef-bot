@@ -10,6 +10,7 @@ from bot.fsm import Onboarding
 from bot.keyboards import (
     kb_cook_minutes,
     kb_household,
+    kb_main,
     kb_multiselect,
     kb_profile_confirm,
     kb_skip,
@@ -251,11 +252,15 @@ async def on_profile_ok(cb: CallbackQuery, state: FSMContext, db_session, family
         tokens_out=data.get("tokens_out", 0),
     )
     await state.clear()
-    await cb.message.edit_text(
+    # Reply-клавиатуру нельзя прикрепить к edit_text — отправляем новым сообщением,
+    # а у сообщения с профилем убираем inline-кнопки (текст профиля остается в чате).
+    await cb.message.edit_reply_markup(reply_markup=None)
+    await cb.message.answer(
         f"{emoji.DONE} Готово! Семья создана.\n\n"
         "Пригласить близких: /invite\n"
         "Профиль семьи: /profile\n"
-        "Справка: /help"
+        "Справка: /help",
+        reply_markup=kb_main(),
     )
     await cb.answer()
 

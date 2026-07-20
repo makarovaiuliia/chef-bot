@@ -63,3 +63,22 @@ async def test_btn_add_asks_what_to_add():
     await shopping.btn_add(message)
     message.answer.assert_awaited_once()
     assert message.answer.await_args.args[0] == shopping._ADD_PROMPT
+
+
+async def test_cmd_help_attaches_main_keyboard():
+    from bot.handlers import start
+    from bot.keyboards import kb_main
+
+    message = AsyncMock()
+    await start.cmd_help(message)
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
+async def test_cmd_start_with_family_attaches_main_keyboard():
+    from bot.handlers import start
+    from bot.keyboards import kb_main
+
+    message = AsyncMock()
+    state = AsyncMock()
+    await start.cmd_start(message, state, family=object())
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
