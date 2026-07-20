@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 from aiogram import F
 from aiogram.filters import Command
 
-from bot.handlers import family, menu, shopping
+from bot.handlers import family, menu, profile, shopping
 from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
 
 
@@ -16,6 +16,10 @@ def _magic_repr(magic) -> str:
     (например, две F.text == "...") никогда не совпадут строкой. Собираем
     репрезентацию из внутренних _operations (тоже __slots__-объекты без
     repr), где и лежит реальное сравнение (имя атрибута, компаратор, значение).
+    Сравнение полагается на то, что компараторы вроде operator.eq/in_op/not_ —
+    синглтоны модуля magic_filter: с не-синглтон компаратором (например, lambda)
+    репрезентация двух структурно одинаковых магий разойдется — тест шумно
+    упадет (false negative), но не пройдет молча.
     """
     return repr(
         [
@@ -82,3 +86,31 @@ async def test_cmd_start_with_family_attaches_main_keyboard():
     state = AsyncMock()
     await start.cmd_start(message, state, family=object())
     assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
+def test_profile_waiting_text_handler_excludes_keyboard_buttons():
+    """Тап по кнопке клавиатуры во время редактирования профиля не должен
+    матчиться хэндлером on_new_text (иначе он затрет profile_md текстом кнопки).
+    """
+    exclusion = _magic_repr(~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}))
+    reprs_by_handler = _registered_filters(profile.router)
+    on_new_text_filters = next(
+        filters for name, filters in reprs_by_handler if name == "on_new_text"
+    )
+    assert any(exclusion in f for f in on_new_text_filters)
+
+
+def test_button_routers_registered_before_freetext():
+    """Порядок include_router — контракт: кнопки не должны утекать в
+    ИИ-чат (freetext). Роутеры menu/shopping/family обязаны идти раньше
+    freetext-роутера в собранном Dispatcher.
+    """
+    from bot.handlers import freetext
+    from bot.main import create_dispatcher
+
+    dp = create_dispatcher()
+    sub_routers = list(dp.sub_routers)
+
+    freetext_index = sub_routers.index(freetext.router)
+    for button_router in (menu.router, shopping.router, family.router):
+        assert sub_routers.index(button_router) < freetext_index
