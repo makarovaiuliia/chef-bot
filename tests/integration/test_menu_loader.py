@@ -5,7 +5,7 @@ import pytest
 
 from core import repositories
 from core.services import menu_loader, shopping_list
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 def _menu_json(start: str, meals: list[dict]) -> bytes:
@@ -26,7 +26,14 @@ TODAY = date(2026, 5, 28)
 
 
 async def test_first_load_with_no_existing_menu_has_no_conflicts(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     raw = _menu_json(
         "2026-05-28",
         [_meal("2026-05-28", "lunch", "A"), _meal("2026-05-28", "dinner", "B")],
@@ -47,7 +54,14 @@ async def test_first_load_with_no_existing_menu_has_no_conflicts(db_session):
 
 
 async def test_loading_non_overlapping_future_dates_just_adds(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     first = await menu_loader.preview_load(
         db_session,
         family_id=family.id,
@@ -75,7 +89,14 @@ async def test_loading_non_overlapping_future_dates_just_adds(db_session):
 
 
 async def test_loading_overlapping_future_date_returns_conflict(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     first = await menu_loader.preview_load(
         db_session,
         family_id=family.id,
@@ -108,7 +129,14 @@ async def test_loading_overlapping_future_date_returns_conflict(db_session):
 
 
 async def test_commit_overwrites_only_conflicting_dates(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     first = await menu_loader.preview_load(
         db_session,
         family_id=family.id,
@@ -150,7 +178,14 @@ async def test_commit_overwrites_only_conflicting_dates(db_session):
 
 
 async def test_past_dates_never_count_as_conflicts(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     first = await menu_loader.preview_load(
         db_session,
         family_id=family.id,
@@ -171,7 +206,14 @@ async def test_past_dates_never_count_as_conflicts(db_session):
 
 
 async def test_load_does_not_touch_shopping_items(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await shopping_list.add_manual_item(
         db_session, family_id=family.id, name="туалетная бумага"
     )
@@ -191,7 +233,14 @@ async def test_load_does_not_touch_shopping_items(db_session):
 
 
 async def test_invalid_json_raises(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     with pytest.raises(menu_loader.MenuLoadError):
         await menu_loader.preview_load(
             db_session, family_id=family.id, raw=b"not json", today=TODAY
@@ -199,7 +248,14 @@ async def test_invalid_json_raises(db_session):
 
 
 async def test_empty_meals_raises(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     with pytest.raises(menu_loader.MenuLoadError):
         await menu_loader.preview_load(
             db_session,
@@ -210,7 +266,14 @@ async def test_empty_meals_raises(db_session):
 
 
 async def test_start_date_after_last_meal_raises(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     raw = _menu_json("2026-06-10", [_meal("2026-05-28", "lunch", "X")])
     with pytest.raises(menu_loader.MenuLoadError):
         await menu_loader.preview_load(

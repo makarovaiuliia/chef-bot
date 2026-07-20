@@ -2,11 +2,18 @@ from datetime import date, timedelta
 
 from core import repositories
 from core.services import digest, shopping_list
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_digest_includes_open_shopping_items(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_active_menu(
         db_session,
         family.id,
@@ -27,7 +34,14 @@ async def test_digest_includes_open_shopping_items(db_session):
 
 
 async def test_digest_fires_with_only_shopping_items_no_menu(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await shopping_list.add_manual_item(db_session, family_id=family.id, name="молоко")
 
     text = await digest.build_morning_digest(
@@ -40,7 +54,14 @@ async def test_digest_fires_with_only_shopping_items_no_menu(db_session):
 
 
 async def test_digest_omits_shopping_line_when_list_empty(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_active_menu(
         db_session,
         family.id,
@@ -78,7 +99,14 @@ async def _make_active_menu(
 
 
 async def test_morning_digest_shows_today_and_tomorrow(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_active_menu(
         db_session,
         family.id,
@@ -109,7 +137,14 @@ async def test_morning_digest_shows_today_and_tomorrow(db_session):
 
 
 async def test_morning_digest_only_today_when_no_tomorrow(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_active_menu(
         db_session,
         family.id,
@@ -132,7 +167,14 @@ async def test_morning_digest_only_today_when_no_tomorrow(db_session):
 
 
 async def test_morning_digest_returns_none_when_no_active_menu(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
 
     text = await digest.build_morning_digest(
         db_session, family_id=family.id, today=date(2026, 5, 27)
@@ -142,7 +184,14 @@ async def test_morning_digest_returns_none_when_no_active_menu(db_session):
 
 
 async def test_morning_digest_returns_none_when_menu_in_the_past(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_active_menu(
         db_session,
         family.id,
@@ -178,7 +227,14 @@ async def _make_three_day_menu(db_session, family_id: int):
 
 
 async def test_digest_warns_two_days_before_menu_ends(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_three_day_menu(db_session, family.id)
 
     text = await digest.build_morning_digest(
@@ -190,7 +246,14 @@ async def test_digest_warns_two_days_before_menu_ends(db_session):
 
 
 async def test_digest_warns_one_day_before_menu_ends(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_three_day_menu(db_session, family.id)
 
     text = await digest.build_morning_digest(
@@ -202,7 +265,14 @@ async def test_digest_warns_one_day_before_menu_ends(db_session):
 
 
 async def test_digest_does_not_warn_on_last_day(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     await _make_three_day_menu(db_session, family.id)
 
     text = await digest.build_morning_digest(
@@ -214,7 +284,14 @@ async def test_digest_does_not_warn_on_last_day(db_session):
 
 
 async def test_digest_does_not_warn_when_menu_has_many_days_left(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     meals = [
         {"date": date(2026, 5, 27) + timedelta(days=i), "slot": "lunch",
          "dish_name": f"Обед {i}", "side_dishes": [], "protein_kind": "chicken"}

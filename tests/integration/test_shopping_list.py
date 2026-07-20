@@ -1,10 +1,17 @@
 from core import repositories
 from core.services import shopping_list
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_add_manual_item_creates_standalone_item(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
 
     item = await shopping_list.add_manual_item(
         db_session, family_id=family.id, name="молоко"
@@ -22,7 +29,14 @@ async def test_add_manual_item_creates_standalone_item(db_session):
 
 
 async def test_toggle_bought_round_trip(db_session):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
 
     item = await shopping_list.add_manual_item(
         db_session, family_id=family.id, name="молоко"

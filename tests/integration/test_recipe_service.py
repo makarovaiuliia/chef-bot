@@ -4,11 +4,18 @@ from unittest.mock import AsyncMock
 from core import repositories
 from core.llm import LLMResponse
 from core.services import recipe_service
-from core.services.family_service import get_or_create_family
+from core.services.family_service import create_family
 
 
 async def test_get_recipe_generates_and_caches(db_session, monkeypatch):
-    family, _ = await get_or_create_family(db_session, telegram_user_id=111)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
     menu = await repositories.create_draft_menu(
         db_session,
         family_id=family.id,
