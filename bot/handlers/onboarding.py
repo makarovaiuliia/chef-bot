@@ -234,7 +234,15 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(Onboarding.confirm, F.data == "onb:profile:ok")
-async def on_profile_ok(cb: CallbackQuery, state: FSMContext, db_session) -> None:
+async def on_profile_ok(
+    cb: CallbackQuery, state: FSMContext, db_session, family=None
+) -> None:
+    if family is not None:
+        # Юзер уже вступил в семью (например, по инвайту посреди онбординга).
+        await state.clear()
+        await cb.message.edit_text("Вы уже состоите в семье.")
+        await cb.answer()
+        return
     data = await state.get_data()
     family, _member = await create_family(
         db_session,

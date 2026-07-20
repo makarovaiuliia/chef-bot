@@ -5,6 +5,19 @@ from bot.handlers import onboarding as onb
 from core.exceptions import LLMError
 
 
+async def test_on_profile_ok_when_already_in_family_clears_state():
+    """Юзер уже в семье (join по инвайту посреди онбординга) —
+    «Всё верно» не должно создавать вторую семью."""
+    cb = AsyncMock()
+    state = AsyncMock()
+
+    await onb.on_profile_ok(cb, state, db_session=None, family=object())
+
+    state.clear.assert_awaited_once()
+    cb.message.edit_text.assert_awaited_once()
+    assert "уже состоите" in cb.message.edit_text.await_args.args[0]
+
+
 async def test_generate_and_show_handles_llm_error(monkeypatch):
     """LLMError (таймаут/429/сеть) не должен вешать юзера на «Составляю профиль»."""
 

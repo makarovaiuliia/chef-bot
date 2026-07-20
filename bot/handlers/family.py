@@ -3,6 +3,7 @@ import html
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -31,8 +32,10 @@ def _name(display_name: str | None, telegram_user_id: int) -> str:
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(INVITE_PREFIX)))
 async def start_with_invite(
-    message: Message, command: CommandObject, db_session, family=None
+    message: Message, command: CommandObject, db_session, state: FSMContext, family=None
 ) -> None:
+    # Юзер мог кликнуть инвайт посреди онбординга — сбрасываем его FSM-state.
+    await state.clear()
     if family is not None:
         await message.answer("Вы уже состоите в семье.")
         return
