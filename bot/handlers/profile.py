@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, ForceReply, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.filters import HasFamily, IsAdmin
+from bot.formatting import md_to_telegram_html
 from bot.fsm import ProfileEdit
 from core import emoji
 from core.services.family_service import get_admin, is_admin, update_profile
@@ -22,7 +23,10 @@ def _kb_edit():
 
 @router.message(Command("profile"))
 async def cmd_profile(message: Message, family, family_member) -> None:
-    text = f"Профиль семьи:\n\n{family.profile_md or '(профиль пуст)'}"
+    profile_text = (
+        md_to_telegram_html(family.profile_md) if family.profile_md else "(профиль пуст)"
+    )
+    text = f"Профиль семьи:\n\n{profile_text}"
     if is_admin(family_member):
         await message.answer(text, reply_markup=_kb_edit())
     else:

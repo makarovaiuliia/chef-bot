@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ForceReply, Message
 from loguru import logger
 
+from bot.formatting import md_to_telegram_html
 from bot.fsm import Onboarding
 from bot.keyboards import (
     kb_cook_minutes,
@@ -226,7 +227,7 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
     )
     await state.set_state(Onboarding.confirm)
     await placeholder.edit_text(
-        f"Вот профиль вашей семьи:\n\n{result.profile_md}\n\n"
+        f"Вот профиль вашей семьи:\n\n{md_to_telegram_html(result.profile_md)}\n\n"
         "Его всегда можно изменить командой /profile.",
         reply_markup=kb_profile_confirm(),
     )
@@ -275,7 +276,7 @@ async def on_profile_edited(message: Message, state: FSMContext) -> None:
     await state.update_data(profile_md=message.text)
     await state.set_state(Onboarding.confirm)
     await message.answer(
-        f"Обновлённый профиль:\n\n{message.text}",
+        f"Обновлённый профиль:\n\n{md_to_telegram_html(message.text)}",
         reply_markup=kb_profile_confirm(),
     )
 
