@@ -24,3 +24,15 @@ class LLMError(ChefBotError):
 
 class LLMInvalidResponse(LLMError):
     pass
+
+
+class FamilyError(Exception):
+    """Base for family-domain errors."""
+
+
+class InvalidInviteCode(FamilyError):
+    pass
+
+
+class AlreadyInFamily(FamilyError):
+    pass
