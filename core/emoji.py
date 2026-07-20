@@ -6,6 +6,7 @@ shopping list) from drifting into different icons on different surfaces.
 
 TODAY = "☀️"
 TOMORROW = "📅"  # also the per-day header in /menu
+COOK = "🍳"  # кнопка «Сегодня» главной клавиатуры
 MENU = "📋"
 DEFROST = "🧊"
 SHOPPING = "🛒"
@@ -19,7 +20,7 @@ HELP = "❓"
 ARROW = "➡️"
 EDIT = "✏️"
 PROFILE = "👤"
-FAMILY = "👪"
+FAMILY = "👨‍👩‍👧"
 INVITE = "✉️"
 CROWN = "👑"
 REFRESH = "🔄"

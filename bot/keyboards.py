@@ -1,7 +1,32 @@
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from core import emoji
+
+
+# Постоянная reply-клавиатура с основными действиями.
+# Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
+BTN_ADD = f"{emoji.ADD} Добавить"
+BTN_TODAY = f"{emoji.COOK} Сегодня"
+BTN_FAMILY = f"{emoji.FAMILY} Семья"
+
+
+def kb_main() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=BTN_ADD),
+                KeyboardButton(text=BTN_TODAY),
+                KeyboardButton(text=BTN_FAMILY),
+            ]
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
 
 
 def kb_confirm_overwrite() -> InlineKeyboardMarkup:
