@@ -14,7 +14,7 @@ from bot.keyboards import (
     kb_skip,
 )
 from core import emoji
-from core.exceptions import LLMInvalidResponse
+from core.exceptions import LLMError
 from core.repositories import log_llm_usage
 from core.services.family_service import create_family
 from core.services.onboarding import OnboardingAnswers, generate_profile
@@ -212,7 +212,7 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
     placeholder = await message.answer(f"{emoji.WAIT} Составляю профиль семьи...")
     try:
         result = await generate_profile(get_llm_client(), answers)
-    except LLMInvalidResponse:
+    except LLMError:  # LLMInvalidResponse — его подкласс
         logger.exception("onboarding: profile generation failed")
         await placeholder.edit_text(
             "Не получилось составить профиль. Попробуйте ещё раз: /start"
