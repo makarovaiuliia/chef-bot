@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import emoji, repositories
-from core.db import FamilyMember, ShoppingItem, Store
+from core.db import FamilyMember, ShoppingItem
 
 
 def build_add_notifications(
@@ -48,7 +48,7 @@ async def add_manual_item(
     family_id: int,
     name: str,
     quantity: str = "",
-    store: Store = Store.other,
+    store: str | None = None,
 ) -> ShoppingItem:
     """Add a standalone shopping item (not bound to any menu's shopping_list)."""
     item = ShoppingItem(

@@ -13,7 +13,7 @@ async def test_add_manual_item_creates_standalone_item(db_session):
     assert item.shopping_list_id is None
     assert item.name == "молоко"
     assert item.quantity == ""
-    assert item.store.value == "other"
+    assert item.store is None
     assert item.bought is False
 
     items = await repositories.get_open_shopping_items(db_session, family_id=family.id)
