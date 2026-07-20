@@ -1,4 +1,5 @@
 """Онбординг нового юзера: опрос → генерация профиля → создание семьи."""
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ForceReply, Message
@@ -44,8 +45,7 @@ async def start_onboarding(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(Onboarding.household)
     await message.answer(
-        "Настроим бота под вашу семью — 6 коротких вопросов.\n\n"
-        "1/6. Сколько человек в семье?",
+        "Настроим бота под вашу семью — 6 коротких вопросов.\n\n1/6. Сколько человек в семье?",
         reply_markup=kb_household(),
     )
 
@@ -62,8 +62,9 @@ async def on_household(cb: CallbackQuery, state: FSMContext) -> None:
     await cb.answer()
 
 
-async def _toggle(cb: CallbackQuery, state: FSMContext, key: str, field: str,
-                  prefix: str, options: dict[str, str]) -> None:
+async def _toggle(
+    cb: CallbackQuery, state: FSMContext, key: str, field: str, prefix: str, options: dict[str, str]
+) -> None:
     data = await state.get_data()
     selected: list[str] = data.get(field, [])
     if key in selected:
@@ -71,9 +72,7 @@ async def _toggle(cb: CallbackQuery, state: FSMContext, key: str, field: str,
     else:
         selected.append(key)
     await state.update_data(**{field: selected})
-    await cb.message.edit_reply_markup(
-        reply_markup=kb_multiselect(prefix, options, set(selected))
-    )
+    await cb.message.edit_reply_markup(reply_markup=kb_multiselect(prefix, options, set(selected)))
     await cb.answer()
 
 
@@ -116,9 +115,7 @@ async def on_restriction_text(message: Message, state: FSMContext) -> None:
     restrictions = data.get("restrictions", [])
     restrictions.append(message.text.strip())
     await state.update_data(restrictions=restrictions)
-    await message.answer(
-        f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше."
-    )
+    await message.answer(f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше.")
 
 
 @router.callback_query(Onboarding.cook_minutes, F.data.startswith("onb:cook:"))
@@ -153,9 +150,7 @@ async def on_pref_text(message: Message, state: FSMContext) -> None:
     prefs = data.get("preferences", [])
     prefs.append(message.text.strip())
     await state.update_data(preferences=prefs)
-    await message.answer(
-        f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше."
-    )
+    await message.answer(f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше.")
 
 
 async def _ask_city(target_message: Message, state: FSMContext) -> None:
@@ -214,9 +209,7 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
         result = await generate_profile(get_llm_client(), answers)
     except LLMError:  # LLMInvalidResponse — его подкласс
         logger.exception("onboarding: profile generation failed")
-        await placeholder.edit_text(
-            "Не получилось составить профиль. Попробуйте ещё раз: /start"
-        )
+        await placeholder.edit_text("Не получилось составить профиль. Попробуйте ещё раз: /start")
         await state.clear()
         return
     await state.update_data(
@@ -234,9 +227,7 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(Onboarding.confirm, F.data == "onb:profile:ok")
-async def on_profile_ok(
-    cb: CallbackQuery, state: FSMContext, db_session, family=None
-) -> None:
+async def on_profile_ok(cb: CallbackQuery, state: FSMContext, db_session, family=None) -> None:
     if family is not None:
         # Юзер уже вступил в семью (например, по инвайту посреди онбординга).
         await state.clear()

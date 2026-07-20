@@ -2,10 +2,6 @@ class ChefBotError(Exception):
     """Base exception."""
 
 
-class NotAuthorized(ChefBotError):
-    """Telegram user is not in allowlist."""
-
-
 class FamilyNotFound(ChefBotError):
     pass
 
