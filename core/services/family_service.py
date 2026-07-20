@@ -106,6 +106,11 @@ async def set_can_plan(
     return member
 
 
+async def update_profile(session: AsyncSession, *, family: Family, profile_md: str) -> None:
+    family.profile_md = profile_md
+    await session.flush()
+
+
 async def get_admin(session: AsyncSession, *, family_id: int) -> FamilyMember | None:
     return (
         await session.execute(

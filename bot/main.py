@@ -11,6 +11,7 @@ from bot.handlers import freetext as freetext_handler
 from bot.handlers import load as load_handler
 from bot.handlers import menu as menu_handler
 from bot.handlers import onboarding as onboarding_handler
+from bot.handlers import profile as profile_handler
 from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import FamilyResolverMiddleware
@@ -49,6 +50,7 @@ async def main() -> None:
     dp.callback_query.middleware(FamilyResolverMiddleware())
 
     dp.include_router(start_handler.router)  # /start, /help
+    dp.include_router(profile_handler.router)
     dp.include_router(menu_handler.router)
     dp.include_router(shopping_handler.router)
     dp.include_router(load_handler.router)

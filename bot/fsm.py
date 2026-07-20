@@ -5,6 +5,10 @@ class LoadConfirm(StatesGroup):
     awaiting = State()
 
 
+class ProfileEdit(StatesGroup):
+    waiting_text = State()
+
+
 class Onboarding(StatesGroup):
     household = State()
     slots = State()
