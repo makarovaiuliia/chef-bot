@@ -15,9 +15,9 @@ _HELP_TEXT = (
     f"{emoji.TODAY} /today — что готовить сегодня\n"
     f"{emoji.SHOPPING} /list — список покупок\n"
     f"{emoji.ADD} /add — добавить пункт в список\n"
-    "👤 /profile — профиль семьи\n"
-    "👪 /family — управление семьёй\n"
-    "✉️ /invite — пригласить в семью\n"
+    f"{emoji.PROFILE} /profile — профиль семьи\n"
+    f"{emoji.FAMILY} /family — управление семьёй\n"
+    f"{emoji.INVITE} /invite — пригласить в семью\n"
     f"{emoji.HELP} /help — справка"
 )
 

@@ -34,7 +34,7 @@ def kb_multiselect(
     for key, label in options.items():
         mark = f"{emoji.DONE} " if key in selected else ""
         b.button(text=f"{mark}{label}", callback_data=f"{prefix}:{key}")
-    b.button(text="Готово ➡️", callback_data=f"{prefix}:done")
+    b.button(text=f"Готово {emoji.ARROW}", callback_data=f"{prefix}:done")
     b.adjust(1)
     return b.as_markup()
 
@@ -57,13 +57,13 @@ def kb_cook_minutes() -> InlineKeyboardMarkup:
 
 def kb_skip(callback: str) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="Пропустить ➡️", callback_data=callback)
+    b.button(text=f"Пропустить {emoji.ARROW}", callback_data=callback)
     return b.as_markup()
 
 
 def kb_profile_confirm() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.button(text=f"{emoji.DONE} Всё верно", callback_data="onb:profile:ok")
-    b.button(text="✏️ Редактировать", callback_data="onb:profile:edit")
+    b.button(text=f"{emoji.EDIT} Редактировать", callback_data="onb:profile:edit")
     b.adjust(2)
     return b.as_markup()
