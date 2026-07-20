@@ -5,12 +5,15 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.filters import HasFamily
 from core import emoji, repositories
 from core.db import Family, Meal
 from core.meal_format import format_meal_lines
 from core.ru_format import format_date_short
 
 router = Router()
+router.message.filter(HasFamily())
+router.callback_query.filter(HasFamily())
 
 
 def _format_today(meals: list[Meal], today: date) -> str:

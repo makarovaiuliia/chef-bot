@@ -12,7 +12,7 @@ from bot.handlers import load as load_handler
 from bot.handlers import menu as menu_handler
 from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
-from bot.middlewares import AllowlistMiddleware, FamilyResolverMiddleware
+from bot.middlewares import FamilyResolverMiddleware
 from bot.scheduler import start_scheduler
 from config import get_settings
 from core.db import get_sessionmaker
@@ -41,8 +41,6 @@ async def main() -> None:
     )
     dp = Dispatcher()
 
-    dp.message.middleware(AllowlistMiddleware())
-    dp.callback_query.middleware(AllowlistMiddleware())
     dp.message.middleware(FamilyResolverMiddleware())
     dp.callback_query.middleware(FamilyResolverMiddleware())
 

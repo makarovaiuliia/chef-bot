@@ -3,6 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, ForceReply, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_shopping_list
 from config import get_settings
@@ -11,6 +12,8 @@ from core.db import Family
 from core.services import shopping_list
 
 router = Router()
+router.message.filter(HasFamily())
+router.callback_query.filter(HasFamily())
 
 _ADD_PROMPT = "Что добавить в список?"
 

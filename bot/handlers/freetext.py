@@ -4,11 +4,14 @@ from aiogram.types import Message
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
 from core.db import Family, FamilyMember
 from core.services import conversation
 
 router = Router()
+router.message.filter(HasFamily())
+router.callback_query.filter(HasFamily())
 
 
 @router.message(F.text & ~F.text.startswith("/"))
