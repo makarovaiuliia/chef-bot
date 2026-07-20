@@ -53,4 +53,4 @@ async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
 async def on_new_text(message: Message, state: FSMContext, db_session, family) -> None:
     await update_profile(db_session, family=family, profile_md=message.text)
     await state.clear()
-    await message.answer(f"{emoji.DONE} Профиль обновлён.")
+    await message.answer(f"{emoji.DONE} Профиль обновлен.")

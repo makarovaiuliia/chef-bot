@@ -73,7 +73,7 @@ async def cmd_add(
         return
     names = _split_names(text)
     if not names:
-        await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
+        await message.answer("Не понял, что добавить. Попробуй /add еще раз.")
         return
     await _add_items(message, family, family_member, db_session, names)
 
@@ -86,7 +86,7 @@ async def handle_add_reply(
 ) -> None:
     names = _split_names(message.text or "")
     if not names:
-        await message.answer("Не понял, что добавить. Попробуй /add ещё раз.")
+        await message.answer("Не понял, что добавить. Попробуй /add еще раз.")
         return
     await _add_items(message, family, family_member, db_session, names)
 
@@ -98,7 +98,7 @@ async def cmd_list(
     items = await shopping_list.get_open_items(db_session, family_id=family.id)
     if not items:
         await message.answer(
-            f"{emoji.SHOPPING} Всё куплено {emoji.DONE}",
+            f"{emoji.SHOPPING} Все куплено {emoji.DONE}",
             reply_markup=kb_shopping_list([]),
         )
         return

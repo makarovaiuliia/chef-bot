@@ -63,7 +63,7 @@ def kb_skip(callback: str) -> InlineKeyboardMarkup:
 
 def kb_profile_confirm() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text=f"{emoji.DONE} Всё верно", callback_data="onb:profile:ok")
+    b.button(text=f"{emoji.DONE} Все верно", callback_data="onb:profile:ok")
     b.button(text=f"{emoji.EDIT} Редактировать", callback_data="onb:profile:edit")
     b.adjust(2)
     return b.as_markup()

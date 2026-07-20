@@ -31,7 +31,7 @@ async def replace_meal(
     user_msg = (
         f"Текущее блюдо: {meal.dish_name} "
         f"(гарниры: {', '.join(meal.side_dishes or [])}, белок: {meal.protein_kind.value}). "
-        f"Дата: {meal.date.isoformat()}, приём: {meal.slot.value}. "
+        f"Дата: {meal.date.isoformat()}, прием: {meal.slot.value}. "
         f"Пожелание пользователя: {hint or 'просто другое блюдо'}. "
         f"Предложи замену."
     )

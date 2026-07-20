@@ -63,7 +63,7 @@ async def handle_message(
             )
         except LLMError as e:
             logger.exception("LLM error in conversation: {}", e)
-            return "Не получилось ответить. Попробуй ещё раз."
+            return "Не получилось ответить. Попробуй еще раз."
 
         if resp.stop_reason == "end_turn" or not resp.tool_calls:
             final_text = resp.text or "Готово."

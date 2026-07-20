@@ -36,7 +36,7 @@ def answers_to_prompt(answers: OnboardingAnswers) -> str:
     slots = ", ".join(SLOT_LABELS.get(s, s) for s in answers.slots)
     lines = [
         f"Состав семьи: {answers.household}",
-        f"Планируемые приёмы пищи: {slots}",
+        f"Планируемые приемы пищи: {slots}",
         f"Ограничения: {', '.join(answers.restrictions) or 'нет'}",
         f"Лимит активной готовки: {answers.cook_minutes} минут",
         f"Предпочтения: {', '.join(answers.preferences) or 'нет'}",

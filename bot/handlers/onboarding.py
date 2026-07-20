@@ -56,7 +56,7 @@ async def on_household(cb: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(household=f"{count} чел.", slots=[])
     await state.set_state(Onboarding.slots)
     await cb.message.edit_text(
-        "2/6. Какие приёмы пищи планировать?",
+        "2/6. Какие приемы пищи планировать?",
         reply_markup=kb_multiselect("onb:slot", SLOT_OPTIONS, set()),
     )
     await cb.answer()
@@ -84,12 +84,12 @@ async def on_slot(cb: CallbackQuery, state: FSMContext) -> None:
         return
     data = await state.get_data()
     if not data.get("slots"):
-        await cb.answer("Выберите хотя бы один приём пищи", show_alert=True)
+        await cb.answer("Выберите хотя бы один прием пищи", show_alert=True)
         return
     await state.update_data(restrictions=[])
     await state.set_state(Onboarding.restrictions)
     await cb.message.edit_text(
-        "3/6. Аллергии и исключения? Отметьте кнопками и/или напишите своё сообщением.",
+        "3/6. Аллергии и исключения? Отметьте кнопками и/или напишите свое сообщением.",
         reply_markup=kb_multiselect("onb:restr", RESTRICTION_OPTIONS, set()),
     )
     await cb.answer()
@@ -115,7 +115,7 @@ async def on_restriction_text(message: Message, state: FSMContext) -> None:
     restrictions = data.get("restrictions", [])
     restrictions.append(message.text.strip())
     await state.update_data(restrictions=restrictions)
-    await message.answer(f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше.")
+    await message.answer(f"Записал: {message.text.strip()}. Отметьте еще или жмите «Готово» выше.")
 
 
 @router.callback_query(Onboarding.cook_minutes, F.data.startswith("onb:cook:"))
@@ -123,7 +123,7 @@ async def on_cook(cb: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(cook_minutes=int(cb.data.split(":")[-1]), preferences=[])
     await state.set_state(Onboarding.preferences)
     await cb.message.edit_text(
-        "5/6. Что любите? Отметьте кнопками и/или напишите своё сообщением.",
+        "5/6. Что любите? Отметьте кнопками и/или напишите свое сообщением.",
         reply_markup=kb_multiselect("onb:pref", PREFERENCE_OPTIONS, set()),
     )
     await cb.answer()
@@ -137,7 +137,7 @@ async def on_pref(cb: CallbackQuery, state: FSMContext) -> None:
         return
     await state.set_state(Onboarding.extra)
     await cb.message.edit_text(
-        "6/6. Что ещё важно знать? (техника, стиль питания, нелюбимые продукты...)\n"
+        "6/6. Что еще важно знать? (техника, стиль питания, нелюбимые продукты...)\n"
         "Напишите сообщением или пропустите.",
         reply_markup=kb_skip("onb:extra:skip"),
     )
@@ -150,13 +150,13 @@ async def on_pref_text(message: Message, state: FSMContext) -> None:
     prefs = data.get("preferences", [])
     prefs.append(message.text.strip())
     await state.update_data(preferences=prefs)
-    await message.answer(f"Записал: {message.text.strip()}. Отметьте ещё или жмите «Готово» выше.")
+    await message.answer(f"Записал: {message.text.strip()}. Отметьте еще или жмите «Готово» выше.")
 
 
 async def _ask_city(target_message: Message, state: FSMContext) -> None:
     await state.set_state(Onboarding.city)
     await target_message.answer(
-        "И последнее: в каком городе живёте? (нужно для времени напоминаний)",
+        "И последнее: в каком городе живете? (нужно для времени напоминаний)",
         reply_markup=kb_skip("onb:city:skip"),
     )
 
@@ -209,7 +209,7 @@ async def _generate_and_show(message: Message, state: FSMContext) -> None:
         result = await generate_profile(get_llm_client(), answers)
     except LLMError:  # LLMInvalidResponse — его подкласс
         logger.exception("onboarding: profile generation failed")
-        await placeholder.edit_text("Не получилось составить профиль. Попробуйте ещё раз: /start")
+        await placeholder.edit_text("Не получилось составить профиль. Попробуйте еще раз: /start")
         await state.clear()
         return
     await state.update_data(
@@ -275,7 +275,7 @@ async def on_profile_edited(message: Message, state: FSMContext) -> None:
     await state.update_data(profile_md=message.text)
     await state.set_state(Onboarding.confirm)
     await message.answer(
-        f"Обновлённый профиль:\n\n{md_to_telegram_html(message.text)}",
+        f"Обновленный профиль:\n\n{md_to_telegram_html(message.text)}",
         reply_markup=kb_profile_confirm(),
     )
 
