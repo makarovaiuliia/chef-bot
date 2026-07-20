@@ -1,6 +1,9 @@
+from unittest.mock import AsyncMock
+
+from bot.handlers.shopping import _notify_added
 from core import repositories
 from core.services import shopping_list
-from core.services.family_service import create_family
+from core.services.family_service import create_family, join_by_invite
 
 
 async def test_add_manual_item_creates_standalone_item(db_session):
@@ -84,3 +87,25 @@ async def test_toggle_bought_cannot_touch_other_family_item(db_session):
         db_session, family_id=family_a.id
     )
     assert [i.id for i in items_a] == [item.id]
+
+
+async def test_notify_added_swallows_send_failure(db_session):
+    """Заблокировавший бота член семьи не должен ронять хендлер (и транзакцию)."""
+    family, adder = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name="Юля",
+        profile_md="p",
+        timezone="UTC",
+        plan_slots=["dinner"],
+    )
+    await join_by_invite(
+        db_session, invite_code=family.invite_code,
+        telegram_user_id=222, display_name="Вова",
+    )
+    message = AsyncMock()
+    message.bot.send_message.side_effect = Exception("bot was blocked by the user")
+
+    await _notify_added(message, family, adder, db_session, ["молоко"])
+
+    message.bot.send_message.assert_awaited_once()

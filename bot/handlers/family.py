@@ -6,6 +6,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from loguru import logger
 
 from bot.filters import HasFamily, IsAdmin
 from core import emoji
@@ -61,10 +62,16 @@ async def start_with_invite(
     admin = await get_admin(db_session, family_id=joined_family.id)
     if admin and admin.telegram_user_id != member.telegram_user_id:
         member_name = _name(member.display_name, member.telegram_user_id)
-        await message.bot.send_message(
-            admin.telegram_user_id,
-            f"{emoji.FAMILY} {member_name} присоединился к семье",
-        )
+        try:
+            await message.bot.send_message(
+                admin.telegram_user_id,
+                f"{emoji.FAMILY} {member_name} присоединился к семье",
+            )
+        except Exception:
+            logger.warning(
+                "family: join notification failed admin_id={}",
+                admin.telegram_user_id,
+            )
 
 
 @router.message(Command("invite"), HasFamily(), IsAdmin())

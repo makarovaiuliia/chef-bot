@@ -1,6 +1,7 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, ForceReply, Message
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
@@ -53,7 +54,10 @@ async def _notify_added(
     """Ping every other family member that someone added items to the list."""
     members = await repositories.get_family_members(db_session, family.id)
     for uid, text in shopping_list.build_added_notifications(family_member, members, names):
-        await message.bot.send_message(uid, md_to_telegram_html(text))
+        try:
+            await message.bot.send_message(uid, md_to_telegram_html(text))
+        except Exception:
+            logger.warning("shopping: added notification failed user_id={}", uid)
 
 
 @router.message(Command("add"))
