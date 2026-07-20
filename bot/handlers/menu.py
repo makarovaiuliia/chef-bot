@@ -1,11 +1,12 @@
 from datetime import date
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
+from bot.keyboards import BTN_TODAY
 from core import emoji, repositories
 from core.db import Family, Meal
 from core.meal_format import format_meal_lines
@@ -47,6 +48,7 @@ async def cmd_menu(
 
 
 @router.message(Command("today"))
+@router.message(F.text == BTN_TODAY)
 async def cmd_today(
     message: Message, family: Family, db_session: AsyncSession
 ) -> None:

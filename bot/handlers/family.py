@@ -9,6 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 
 from bot.filters import HasFamily, IsAdmin
+from bot.keyboards import BTN_FAMILY
 from core import emoji
 from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
 from core.repositories import get_family_members
@@ -110,6 +111,7 @@ def _kb_family(members, admin_id: int):
 
 
 @router.message(Command("family"), HasFamily(), IsAdmin())
+@router.message(F.text == BTN_FAMILY, HasFamily(), IsAdmin())
 async def cmd_family(message: Message, db_session, family, family_member) -> None:
     members = await get_family_members(db_session, family_id=family.id)
     lines = [
@@ -126,6 +128,7 @@ async def cmd_family(message: Message, db_session, family, family_member) -> Non
 
 
 @router.message(Command("family"), HasFamily())
+@router.message(F.text == BTN_FAMILY, HasFamily())
 async def cmd_family_member_view(message: Message, db_session, family) -> None:
     members = await get_family_members(db_session, family_id=family.id)
     lines = [
