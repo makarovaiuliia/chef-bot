@@ -1102,15 +1102,15 @@ git commit -m "feat(settings): /settings — digest on/off and hour per family"
 
 ---
 
-### Task 7: UX-бэклог этапа 2
+### Task 7: UX-бэклог этапа 2 + рецепты только из /today
 
 **Files:**
-- Modify: `bot/handlers/plan.py` (`cmd_plan`, `on_custom_date`, `on_replace_hint`), `bot/handlers/profile.py` (`on_new_text`), `core/services/menu_planner.py` (`_user_message`, `parse_start_date`)
-- Test: `tests/unit/test_plan_dates.py`, `tests/unit/test_plan_handlers.py`
+- Modify: `bot/handlers/plan.py` (`cmd_plan`, `on_custom_date`, `on_replace_hint`), `bot/handlers/profile.py` (`on_new_text`), `core/services/menu_planner.py` (`_user_message`, `parse_start_date`), `bot/handlers/menu.py` (`cmd_menu`)
+- Test: `tests/unit/test_plan_dates.py`, `tests/unit/test_plan_handlers.py`, `tests/unit/test_menu_handlers.py` (новый)
 
 **Interfaces:**
 - Consumes: `delete_draft` (этап 2).
-- Produces: команды не проглатываются текстовыми состояниями; повторный `/plan` удаляет сиротский черновик; промпт с русскими днями; «29.02» коротким форматом работает.
+- Produces: команды не проглатываются текстовыми состояниями; повторный `/plan` удаляет сиротский черновик; промпт с русскими днями; «29.02» коротким форматом работает; **кнопки «Рецепт» только в /today** (решение пользователя 2026-07-21, спека §-решение 4: из /menu доступ к рецептам убран; callback `meal:recipe:` и `cb_recipe` остаются — их шлет /today).
 
 - [ ] **Step 1: Падающие тесты**
 
@@ -1144,8 +1144,53 @@ async def test_custom_date_ignores_commands():
     assert any("startswith" in f and "/" in f for f in on_custom)
     on_hint = filters_by_handler["on_replace_hint"]
     assert any("startswith" in f and "/" in f for f in on_hint)
+```
+
+Создать `tests/unit/test_menu_handlers.py`:
+
+```python
+"""Рецепты доступны только из /today (решение 2026-07-21): /menu — без кнопок."""
+from datetime import date
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from bot.handlers import menu as menu_handler
+from core.db import MealSlot
 
 
+def _meal(d: date, slot: MealSlot) -> SimpleNamespace:
+    return SimpleNamespace(id=1, date=d, slot=slot, dish_name="Блюдо", side_dishes=[])
+
+
+async def test_cmd_menu_has_no_recipe_buttons(monkeypatch):
+    async def fake_meals(*a, **kw):
+        return [_meal(date(2026, 7, 27), MealSlot.lunch)]
+
+    monkeypatch.setattr(menu_handler.repositories, "get_future_meals", fake_meals)
+    message = AsyncMock()
+
+    await menu_handler.cmd_menu(message, SimpleNamespace(id=1), db_session=None)
+
+    assert message.answer.await_args.kwargs.get("reply_markup") is None
+
+
+async def test_cmd_today_keeps_recipe_buttons(monkeypatch):
+    async def fake_meals(*a, **kw):
+        return [_meal(date(2026, 7, 27), MealSlot.lunch)]
+
+    monkeypatch.setattr(menu_handler.repositories, "get_meals_for_date", fake_meals)
+    message = AsyncMock()
+
+    await menu_handler.cmd_today(message, SimpleNamespace(id=1), db_session=None)
+
+    assert message.answer.await_args.kwargs.get("reply_markup") is not None
+```
+
+(сигнатуры `cmd_menu`/`cmd_today` сверить с фактическим bot/handlers/menu.py — параметры family/db_session инжектятся aiogram по именам.)
+
+В `tests/unit/test_plan_handlers.py`:
+
+```python
 async def test_cmd_plan_deletes_orphan_draft(monkeypatch):
     deleted = {}
 
@@ -1179,6 +1224,8 @@ Run: → FAIL.
 - фильтры `on_custom_date` и `on_replace_hint`: добавить `& ~F.text.startswith("/")` к существующему `F.text & ~F.text.in_({...})`.
 
 `bot/handlers/profile.py::on_new_text` — аналогично `~F.text.startswith("/")` (профиль-текст с «/» в начале — не кейс).
+
+`bot/handlers/menu.py::cmd_menu` — убрать `reply_markup=kb_meal_recipes(meals)` из ответа (рецепты только из /today — решение 2026-07-21); `cmd_today` НЕ трогать (кнопки остаются). Если после этого `kb_meal_recipes` используется только в cmd_today — это ок, ничего не удалять. Существующие тесты, ожидающие кнопки в /menu (если есть в tests/unit/test_menu_keyboards.py или соседних) — привести к новому поведению.
 
 `core/services/menu_planner.py`:
 - `_user_message`: заменить `d.strftime('%a')`:
