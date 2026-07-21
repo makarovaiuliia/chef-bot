@@ -110,7 +110,7 @@ def _kb_family(members):
 
 @router.message(Command("family"), HasFamily(), IsAdmin())
 @router.message(F.text == BTN_FAMILY, HasFamily(), IsAdmin())
-async def cmd_family(message: Message, db_session, family, family_member) -> None:
+async def cmd_family(message: Message, db_session, family) -> None:
     members = await get_family_members(db_session, family_id=family.id)
     lines = [
         f"{emoji.CROWN + ' ' if is_admin(m) else ''}"

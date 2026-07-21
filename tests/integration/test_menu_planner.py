@@ -161,6 +161,30 @@ async def test_delete_draft_only_deletes_draft(db_session):
     await menu_planner.delete_draft(db_session, menu_id=999)  # no-op, не падает
 
 
+def _incomplete_menu(days: int = 3, start: date = START) -> str:
+    """Полное меню, кроме dinner на последний день (недостача одного слота)."""
+    meals = []
+    for i in range(days):
+        d = (start + timedelta(days=i)).isoformat()
+        meals.append({"date": d, "slot": "lunch", "dish_name": f"Обед {i}",
+                      "side_dishes": ["рис"], "protein_kind": "chicken"})
+        if i < days - 1:
+            meals.append({"date": d, "slot": "dinner", "dish_name": f"Ужин {i}",
+                          "side_dishes": [], "protein_kind": "fish"})
+    return json.dumps({"meals": meals})
+
+
+async def test_generate_menu_rejects_incomplete_menu(db_session):
+    fam = await _family(db_session)
+    incomplete = _incomplete_menu(3)
+    with pytest.raises(LLMInvalidResponse):
+        await menu_planner.generate_menu(
+            db_session, family=fam, start_date=START, days_count=3,
+            llm=FakeLLM([incomplete, incomplete]),
+        )
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="menu_gen") == 0
+
+
 async def test_generate_menu_rejects_duplicate_date_slot(db_session):
     fam = await _family(db_session)
     dup = json.dumps({"meals": [

@@ -132,7 +132,11 @@ async def on_duration(
     family_member: FamilyMember,
     db_session: AsyncSession,
 ) -> None:
-    await state.update_data(days=int(cb.data.split(":")[-1]))
+    days = int(cb.data.split(":")[-1])
+    if days not in {3, 5, 7}:
+        await cb.answer("Недоступная длительность", show_alert=True)
+        return
+    await state.update_data(days=days)
     await cb.answer()
     await _generate_and_show(cb.message, state, family, family_member, db_session)
 
@@ -292,6 +296,7 @@ async def _suggest_and_show(
 
 
 @router.callback_query(PlanFlow.replace_alts, F.data.startswith("plan:alt:"))
+@router.callback_query(PlanFlow.replace_hint, F.data.startswith("plan:alt:"))
 async def on_pick_alternative(
     cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
@@ -332,6 +337,7 @@ async def on_ask_hint(cb: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(PlanFlow.replace_pick, F.data == "plan:back")
 @router.callback_query(PlanFlow.replace_alts, F.data == "plan:back")
+@router.callback_query(PlanFlow.replace_hint, F.data == "plan:back")
 async def on_back_to_draft(
     cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
@@ -451,3 +457,9 @@ async def on_shoplist_retry(cb: CallbackQuery, family: Family,
         return
     await cb.answer()
     await _build_shopping(cb.message, family, db_session, menu)
+
+
+@router.callback_query(F.data.startswith("plan:"))
+async def on_stale_callback(cb: CallbackQuery) -> None:
+    """Catch-all: кнопки старых сообщений (рестарт, state.clear(), выключенный флаг)."""
+    await cb.answer("Сессия планирования устарела — начните заново: /plan", show_alert=True)

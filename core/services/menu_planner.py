@@ -79,6 +79,9 @@ def _validate_generated(parsed: _MenuSchema, dates: list[DateType], slots: list[
         if key in seen:
             raise LLMInvalidResponse(f"дубликат {m.date} {m.slot.value} в ответе LLM")
         seen.add(key)
+    expected = len(dates) * len(slots)
+    if len(seen) != expected:
+        raise LLMInvalidResponse(f"неполное меню: {len(seen)} блюд вместо {expected}")
 
 
 async def generate_menu(
