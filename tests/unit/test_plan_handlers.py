@@ -1,4 +1,5 @@
 """Хендлер-тесты /plan на AsyncMock (без aiogram-харнесса)."""
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -113,3 +114,19 @@ async def test_suggest_llm_error_returns_to_pick(monkeypatch):
     placeholder.edit_text.assert_awaited_once()
     assert "Не получилось" in placeholder.edit_text.await_args.args[0]
     state.set_state.assert_awaited_with(plan_handler.PlanFlow.replace_pick)
+
+
+async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch):
+    async def boom(*a, **kw):
+        raise LLMInvalidResponse("bad")
+
+    monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", boom)
+    message = AsyncMock()
+    menu = SimpleNamespace(id=7, days_count=5, start_date=date(2026, 7, 27), meals=[])
+
+    await plan_handler._build_shopping(message, _family(), db_session=None, menu=menu)
+
+    placeholder = message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "утверждено" in text and "список покупок" in text
+    assert placeholder.edit_text.await_args.kwargs["reply_markup"] is not None

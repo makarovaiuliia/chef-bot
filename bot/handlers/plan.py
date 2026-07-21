@@ -17,6 +17,7 @@ from bot.keyboards import (
     BTN_FAMILY,
     BTN_TODAY,
     kb_plan_alternatives,
+    kb_plan_approve_confirm,
     kb_plan_draft,
     kb_plan_duration,
     kb_plan_meals,
@@ -29,7 +30,7 @@ from core.db import Family, FamilyMember, Menu
 from core.exceptions import LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
-from core.services import menu_planner
+from core.services import menu_planner, shopping_list
 from core.services.dish_replacer import (
     ReplacementOption,
     apply_replacement,
@@ -356,3 +357,97 @@ async def on_regenerate(
         await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
     await cb.answer()
     await _generate_and_show(cb.message, state, family, family_member, db_session)
+
+
+@router.callback_query(PlanFlow.draft, F.data == "plan:approve")
+async def on_approve(cb: CallbackQuery, state: FSMContext, family: Family,
+                     family_member: FamilyMember, db_session: AsyncSession) -> None:
+    menu = await _draft_menu(state, db_session, family)
+    if menu is None:
+        await cb.answer("Черновик не найден — начните заново: /plan", show_alert=True)
+        return
+    today = menu_planner.family_today(family)
+    conflicts = await menu_planner.preview_approve(db_session, menu=menu, today=today)
+    if conflicts:
+        dates_str = ", ".join(d.strftime("%d.%m.%Y") for d in sorted(conflicts))
+        await state.set_state(PlanFlow.approve_confirm)
+        await cb.message.edit_text(
+            f"На даты {dates_str} уже есть меню. Перезаписать?",
+            reply_markup=kb_plan_approve_confirm(),
+        )
+        await cb.answer()
+        return
+    await cb.answer()
+    await _do_approve(cb.message, state, family, family_member, db_session, menu, today)
+
+
+@router.callback_query(PlanFlow.approve_confirm, F.data == "plan:approveyes")
+async def on_approve_yes(cb: CallbackQuery, state: FSMContext, family: Family,
+                         family_member: FamilyMember, db_session: AsyncSession) -> None:
+    menu = await _draft_menu(state, db_session, family)
+    if menu is None:
+        await cb.answer("Черновик не найден — начните заново: /plan", show_alert=True)
+        return
+    await cb.answer()
+    await _do_approve(
+        cb.message, state, family, family_member, db_session,
+        menu, menu_planner.family_today(family),
+    )
+
+
+@router.callback_query(PlanFlow.approve_confirm, F.data == "plan:approveno")
+async def on_approve_no(cb: CallbackQuery, state: FSMContext, family: Family,
+                        db_session: AsyncSession) -> None:
+    menu = await _draft_menu(state, db_session, family)
+    await cb.answer()
+    if menu is not None:
+        await _show_draft(cb.message, state, menu)
+
+
+async def _do_approve(message: Message, state: FSMContext, family: Family,
+                      family_member: FamilyMember, db_session: AsyncSession,
+                      menu: Menu, today) -> None:
+    await menu_planner.commit_approve(db_session, menu=menu, today=today)
+    await state.clear()
+    await message.edit_text(
+        f"{emoji.DONE} Меню утверждено: {menu.days_count} дн. с "
+        f"{menu.start_date.strftime('%d.%m.%Y')}. Смотреть: /menu"
+    )
+    await _notify_admins(
+        message, db_session, family, family_member,
+        f"{emoji.DONE} {_actor_name(family_member)} утвердил(а) меню на "
+        f"{menu.days_count} дн. с {menu.start_date.strftime('%d.%m.%Y')}",
+    )
+    await _build_shopping(message, family, db_session, menu)
+
+
+async def _build_shopping(message: Message, family: Family,
+                          db_session: AsyncSession, menu: Menu) -> None:
+    placeholder = await message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    try:
+        items = await shopping_list.build_from_menu(
+            db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
+        )
+    except LLMError:
+        logger.exception("plan: shopping list build failed menu_id={}", menu.id)
+        await placeholder.edit_text(
+            "Меню утверждено, но список покупок собрать не получилось.",
+            reply_markup=kb_retry(f"plan:shoplist:{menu.id}"),
+        )
+        return
+    await placeholder.edit_text(
+        f"{emoji.SHOPPING} Список покупок готов: {len(items)} пунктов. Смотреть: /list"
+    )
+
+
+@router.callback_query(F.data.startswith("plan:shoplist:"))
+async def on_shoplist_retry(cb: CallbackQuery, family: Family,
+                            db_session: AsyncSession) -> None:
+    """Ретрай сборки списка после утверждения (вне FSM — state уже очищен)."""
+    menu_id = int(cb.data.split(":")[-1])
+    menu = await repositories.get_menu_with_meals(db_session, menu_id)
+    if menu is None or menu.family_id != family.id:
+        await cb.answer("Меню не найдено", show_alert=True)
+        return
+    await cb.answer()
+    await _build_shopping(cb.message, family, db_session, menu)

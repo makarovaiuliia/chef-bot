@@ -2,6 +2,7 @@ from datetime import date
 
 from bot.keyboards import (
     kb_plan_alternatives,
+    kb_plan_approve_confirm,
     kb_plan_draft,
     kb_plan_duration,
     kb_plan_meals,
@@ -48,3 +49,8 @@ def test_plan_meals_button_per_meal_plus_back():
 def test_plan_alternatives_numbered_plus_hint_and_back():
     datas = _datas(kb_plan_alternatives(3))
     assert datas == ["plan:alt:0", "plan:alt:1", "plan:alt:2", "plan:althint", "plan:back"]
+
+
+def test_plan_approve_confirm_buttons():
+    datas = _datas(kb_plan_approve_confirm())
+    assert datas == ["plan:approveyes", "plan:approveno"]

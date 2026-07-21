@@ -121,6 +121,14 @@ def kb_plan_draft() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_plan_approve_confirm() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.DONE} Да, перезаписать", callback_data="plan:approveyes")
+    b.button(text=f"{emoji.CANCEL} Нет", callback_data="plan:approveno")
+    b.adjust(2)
+    return b.as_markup()
+
+
 def kb_plan_meals(meals) -> InlineKeyboardMarkup:
     """Выбор блюда для замены в черновике."""
     b = InlineKeyboardBuilder()
