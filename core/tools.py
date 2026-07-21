@@ -191,7 +191,11 @@ async def _tool_replace_meal(
     if target is None:
         return f"Не нашел {input['slot']} на {input['date']} в активном меню."
     new_meal = await dish_replacer.replace_meal(
-        session, meal_id=target.id, hint=input.get("hint"), profile_md=profile_md
+        session,
+        meal_id=target.id,
+        hint=input.get("hint"),
+        profile_md=profile_md,
+        family_id=family_id,
     )
     result = f"Заменил {input['slot']} {input['date']} на: {new_meal.dish_name}"
     if new_meal.side_dishes:
