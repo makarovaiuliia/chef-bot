@@ -2,9 +2,12 @@ import json
 from datetime import date
 from unittest.mock import AsyncMock
 
+import pytest
+
 from bot.handlers.shopping import _notify_added
 from core import repositories
 from core.db import Family
+from core.exceptions import LLMInvalidResponse
 from core.llm import LLMResponse
 from core.repositories import count_llm_operations, create_draft_menu, get_open_shopping_items
 from core.services import shopping_list
@@ -13,6 +16,11 @@ from core.services.family_service import create_family, join_by_invite
 _ITEMS = json.dumps({"items": [
     {"name": "Куриные бёдра", "quantity": "1 кг"},
     {"name": "Рис", "quantity": "500 г"},
+]})
+
+_ITEMS2 = json.dumps({"items": [
+    {"name": "Морковь", "quantity": "3 шт"},
+    {"name": "Гречка", "quantity": "400 г"},
 ]})
 
 
@@ -155,14 +163,39 @@ async def test_build_from_menu_creates_items_and_logs(db_session):
 async def test_build_from_menu_closes_stale_keeps_manual(db_session):
     fam, menu = await _family_with_menu(db_session)
     await shopping_list.add_manual_item(db_session, family_id=fam.id, name="Молоко")
+    first_items = await shopping_list.build_from_menu(
+        db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM([_ITEMS])
+    )
+    # второе меню (другой набор блюд от LLM): пункты первого закрываются, ручной остаётся
+    _, menu2 = await _family_with_menu(db_session)
+    await shopping_list.build_from_menu(
+        db_session, family_id=fam.id, menu=menu2, profile_md="п", llm=FakeLLM([_ITEMS2])
+    )
+    open_items = await get_open_shopping_items(db_session, family_id=fam.id)
+    assert len(open_items) == 3  # молоко + 2 из второго билда
+    assert {i.name for i in open_items} == {"Молоко", "Морковь", "Гречка"}
+    assert all(i.bought is True for i in first_items)
+
+
+async def test_build_from_menu_invalid_json_leaves_list_untouched(db_session):
+    fam, menu = await _family_with_menu(db_session)
     await shopping_list.build_from_menu(
         db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM([_ITEMS])
     )
-    # второе меню: пункты первого закрываются, ручной остаётся
-    _, menu2 = await _family_with_menu(db_session)
-    await shopping_list.build_from_menu(
-        db_session, family_id=fam.id, menu=menu2, profile_md="п", llm=FakeLLM([_ITEMS])
+    before = await get_open_shopping_items(db_session, family_id=fam.id)
+    before_count = await count_llm_operations(
+        db_session, family_id=fam.id, operation="shopping"
     )
-    open_names = {i.name for i in await get_open_shopping_items(db_session, family_id=fam.id)}
-    assert "Молоко" in open_names
-    assert len(open_names) == 3  # молоко + 2 новых
+
+    with pytest.raises(LLMInvalidResponse):
+        await shopping_list.build_from_menu(
+            db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM(["мусор"])
+        )
+
+    after = await get_open_shopping_items(db_session, family_id=fam.id)
+    assert [i.id for i in after] == [i.id for i in before]
+    assert all(i.bought is False for i in after)
+    assert (
+        await count_llm_operations(db_session, family_id=fam.id, operation="shopping")
+        == before_count
+    )
