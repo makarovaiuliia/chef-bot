@@ -19,3 +19,14 @@ class Onboarding(StatesGroup):
     city = State()
     confirm = State()
     edit_profile = State()
+
+
+class PlanFlow(StatesGroup):
+    start_date = State()
+    custom_date = State()
+    duration = State()
+    draft = State()
+    replace_pick = State()
+    replace_alts = State()
+    replace_hint = State()
+    approve_confirm = State()

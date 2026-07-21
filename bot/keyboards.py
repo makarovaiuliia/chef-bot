@@ -94,6 +94,39 @@ def kb_profile_confirm() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_plan_start() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="Сегодня", callback_data="plan:date:today")
+    b.button(text="Завтра", callback_data="plan:date:tomorrow")
+    b.button(text="Понедельник", callback_data="plan:date:monday")
+    b.button(text=f"{emoji.EDIT} Своя дата", callback_data="plan:date:custom")
+    b.adjust(3, 1)
+    return b.as_markup()
+
+
+def kb_plan_duration() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for n in (3, 5, 7):
+        b.button(text=f"{n} дн.", callback_data=f"plan:days:{n}")
+    b.adjust(3)
+    return b.as_markup()
+
+
+def kb_plan_draft() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.REPLACE} Заменить блюдо", callback_data="plan:replace")
+    b.button(text=f"{emoji.REGEN} Перегенерировать все", callback_data="plan:regen")
+    b.button(text=f"{emoji.DONE} Утвердить", callback_data="plan:approve")
+    b.adjust(1)
+    return b.as_markup()
+
+
+def kb_retry(callback: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.REFRESH} Попробовать еще раз", callback_data=callback)
+    return b.as_markup()
+
+
 def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
     """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
     b = InlineKeyboardBuilder()

@@ -12,6 +12,7 @@ from bot.handlers import freetext as freetext_handler
 from bot.handlers import load as load_handler
 from bot.handlers import menu as menu_handler
 from bot.handlers import onboarding as onboarding_handler
+from bot.handlers import plan as plan_handler
 from bot.handlers import profile as profile_handler
 from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
@@ -20,16 +21,21 @@ from bot.scheduler import start_scheduler
 from config import get_settings
 from core.db import get_sessionmaker
 
-BOT_COMMANDS = [
-    BotCommand(command="menu", description="Текущее меню"),
-    BotCommand(command="today", description="Что готовить сегодня"),
-    BotCommand(command="list", description="Список покупок"),
-    BotCommand(command="add", description="Добавить пункт в список"),
-    BotCommand(command="profile", description="Профиль семьи"),
-    BotCommand(command="family", description="Управление семьей"),
-    BotCommand(command="invite", description="Пригласить в семью"),
-    BotCommand(command="help", description="Справка"),
-]
+
+def bot_commands(*, planning_enabled: bool) -> list[BotCommand]:
+    commands = [
+        BotCommand(command="menu", description="Текущее меню"),
+        BotCommand(command="today", description="Что готовить сегодня"),
+        BotCommand(command="list", description="Список покупок"),
+        BotCommand(command="add", description="Добавить пункт в список"),
+        BotCommand(command="profile", description="Профиль семьи"),
+        BotCommand(command="family", description="Управление семьей"),
+        BotCommand(command="invite", description="Пригласить в семью"),
+        BotCommand(command="help", description="Справка"),
+    ]
+    if planning_enabled:
+        commands.insert(2, BotCommand(command="plan", description="Спланировать меню"))
+    return commands
 
 
 def configure_logging(level: str) -> None:
@@ -49,6 +55,7 @@ def create_dispatcher() -> Dispatcher:
     dp.include_router(family_handler.router)  # deep-link join + /family, /invite — ПЕРВЫМ
     dp.include_router(start_handler.router)  # /start, /help
     dp.include_router(profile_handler.router)
+    dp.include_router(plan_handler.router)
     dp.include_router(menu_handler.router)
     dp.include_router(shopping_handler.router)
     dp.include_router(load_handler.router)
@@ -67,7 +74,7 @@ async def main() -> None:
     )
     dp = create_dispatcher()
 
-    await bot.set_my_commands(BOT_COMMANDS)
+    await bot.set_my_commands(bot_commands(planning_enabled=settings.planning_enabled))
     scheduler_tasks = start_scheduler(bot, get_sessionmaker())
     logger.info("starting bot polling")
     try:

@@ -5,6 +5,7 @@ from aiogram.types import Message
 
 from bot.handlers.onboarding import start_onboarding
 from bot.keyboards import kb_main
+from config import get_settings
 from core import emoji
 
 router = Router()
@@ -16,6 +17,11 @@ def help_text() -> str:
         "Команды:",
         f"{emoji.MENU} /menu — текущее меню",
         f"{emoji.TODAY} /today — что готовить сегодня",
+        *(
+            [f"{emoji.MENU} /plan — спланировать меню"]
+            if get_settings().planning_enabled
+            else []
+        ),
         f"{emoji.SHOPPING} /list — список покупок",
         f"{emoji.ADD} /add — добавить пункт в список",
         f"{emoji.PROFILE} /profile — профиль семьи",
