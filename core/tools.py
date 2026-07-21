@@ -55,7 +55,7 @@ TOOL_SCHEMAS: list[dict] = [
             "type": "object",
             "properties": {
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "slot": {"type": "string", "enum": ["lunch", "dinner"]},
+                "slot": {"type": "string", "enum": ["breakfast", "lunch", "dinner"]},
                 "hint": {
                     "type": "string",
                     "description": (
@@ -78,7 +78,7 @@ TOOL_SCHEMAS: list[dict] = [
             "type": "object",
             "properties": {
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "slot": {"type": "string", "enum": ["lunch", "dinner"]},
+                "slot": {"type": "string", "enum": ["breakfast", "lunch", "dinner"]},
             },
             "required": ["date", "slot"],
         },

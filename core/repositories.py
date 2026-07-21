@@ -20,8 +20,12 @@ from core.db import (
     ShoppingItem,
 )
 
-# lunch first, then dinner — enum string order is "dinner" < "lunch", which is wrong for UX
-_SLOT_ORDER = case((Meal.slot == MealSlot.lunch, 0), else_=1)
+# завтрак → обед → ужин; строковый порядок enum'а ("breakfast" < "dinner" < "lunch") не годится
+_SLOT_ORDER = case(
+    (Meal.slot == MealSlot.breakfast, 0),
+    (Meal.slot == MealSlot.lunch, 1),
+    else_=2,
+)
 
 
 async def create_draft_menu(
