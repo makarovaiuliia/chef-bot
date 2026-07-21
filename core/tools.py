@@ -210,7 +210,9 @@ async def _tool_get_recipe_for_meal(
     target = next((m for m in meals if m.slot.value == input["slot"]), None)
     if target is None:
         return f"Не нашел {input['slot']} на {input['date']} в активном меню."
-    recipe = await recipe_service.get_recipe(session, meal_id=target.id, profile_md=profile_md)
+    recipe = await recipe_service.get_recipe(
+        session, meal_id=target.id, profile_md=profile_md, family_id=family_id
+    )
     return recipe.content_md
 
 
