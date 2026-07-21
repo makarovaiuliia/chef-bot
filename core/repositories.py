@@ -214,6 +214,18 @@ async def get_recipe(session: AsyncSession, meal_id: int) -> Recipe | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def get_meal_for_family(
+    session: AsyncSession, meal_id: int, *, family_id: int
+) -> Meal | None:
+    """Meal по id, только если он принадлежит меню этой семьи (защита callback-данных)."""
+    stmt = (
+        select(Meal)
+        .join(Menu)
+        .where(Meal.id == meal_id, Menu.family_id == family_id)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def get_family_members(
     session: AsyncSession, family_id: int
 ) -> list[FamilyMember]:

@@ -6,6 +6,7 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from core import emoji
+from core.meal_format import slot_label
 
 # Постоянная reply-клавиатура с основными действиями.
 # Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
@@ -90,4 +91,16 @@ def kb_profile_confirm() -> InlineKeyboardMarkup:
     b.button(text=f"{emoji.DONE} Все верно", callback_data="onb:profile:ok")
     b.button(text=f"{emoji.EDIT} Редактировать", callback_data="onb:profile:edit")
     b.adjust(2)
+    return b.as_markup()
+
+
+def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
+    """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
+    b = InlineKeyboardBuilder()
+    for m in meals:
+        b.button(
+            text=f"{emoji.RECIPE} {slot_label(m.slot)} {m.date.strftime('%d.%m')}: {m.dish_name}",
+            callback_data=f"meal:recipe:{m.id}",
+        )
+    b.adjust(1)
     return b.as_markup()
