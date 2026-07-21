@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Bangkok"
     log_level: str = "INFO"
     claude_model: str = "claude-sonnet-4-6"
+    conversation_enabled: bool = False
+    planning_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
