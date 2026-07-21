@@ -26,7 +26,7 @@ from bot.keyboards import (
 from config import get_settings
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu
-from core.exceptions import LLMError
+from core.exceptions import LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import menu_planner
@@ -297,12 +297,24 @@ async def on_pick_alternative(
     idx = int(cb.data.split(":")[-1])
     data = await state.get_data()
     raw = data.get("alternatives", [])
-    if idx >= len(raw):
+    if idx < 0 or idx >= len(raw):
         await cb.answer("Вариант не найден", show_alert=True)
         return
     option = ReplacementOption.model_validate(raw[idx])
-    await apply_replacement(db_session, meal_id=data["replace_meal_id"], option=option)
+    try:
+        await apply_replacement(db_session, meal_id=data["replace_meal_id"], option=option)
+    except (MealNotFound, ValueError):
+        logger.warning(
+            "plan: apply_replacement failed meal_id={}", data.get("replace_meal_id")
+        )
+        await cb.answer(
+            "Блюдо не найдено — черновик изменился. /plan", show_alert=True
+        )
+        return
     menu = await _draft_menu(state, db_session, family)
+    if menu is None:
+        await cb.answer("Черновик не найден — начните заново: /plan", show_alert=True)
+        return
     await cb.answer(f"Заменил на: {option.dish_name}")
     await _show_draft(cb.message, state, menu)
 

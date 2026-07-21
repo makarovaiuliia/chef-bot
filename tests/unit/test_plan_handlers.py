@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from bot.handlers import plan as plan_handler
-from core.exceptions import LLMInvalidResponse
+from core.exceptions import LLMInvalidResponse, MealNotFound
 
 
 def _family(**kw):
@@ -56,3 +56,60 @@ async def test_pick_alternative_out_of_range_alerts():
     await plan_handler.on_pick_alternative(cb, state, _family(), db_session=None)
     cb.answer.assert_awaited_once()
     assert cb.answer.await_args.kwargs.get("show_alert") is True
+
+
+async def test_pick_alternative_vanished_meal_alerts(monkeypatch):
+    async def boom(*a, **kw):
+        raise MealNotFound("meal gone")
+
+    monkeypatch.setattr(plan_handler, "apply_replacement", boom)
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:alt:0"
+    state.get_data.return_value = {
+        "alternatives": [{"dish_name": "Рыба", "side_dishes": [], "protein_kind": "fish"}],
+        "replace_meal_id": 1,
+    }
+
+    await plan_handler.on_pick_alternative(cb, state, _family(), db_session=None)
+
+    cb.answer.assert_awaited_once()
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+    cb.message.edit_text.assert_not_awaited()
+
+
+async def test_pick_alternative_negative_index_alerts(monkeypatch):
+    apply_mock = AsyncMock()
+    monkeypatch.setattr(plan_handler, "apply_replacement", apply_mock)
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:alt:-1"
+    state.get_data.return_value = {
+        "alternatives": [{"dish_name": "Рыба", "side_dishes": [], "protein_kind": "fish"}],
+        "replace_meal_id": 1,
+    }
+
+    await plan_handler.on_pick_alternative(cb, state, _family(), db_session=None)
+
+    cb.answer.assert_awaited_once()
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+    apply_mock.assert_not_awaited()
+
+
+async def test_suggest_llm_error_returns_to_pick(monkeypatch):
+    async def boom(*a, **kw):
+        raise LLMInvalidResponse("bad json")
+
+    monkeypatch.setattr(plan_handler, "suggest_replacements", boom)
+    monkeypatch.setattr(
+        plan_handler.repositories,
+        "get_meal_for_family",
+        AsyncMock(return_value=SimpleNamespace()),
+    )
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"replace_meal_id": 1}
+
+    await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint=None)
+
+    placeholder = message.answer.return_value
+    placeholder.edit_text.assert_awaited_once()
+    assert "Не получилось" in placeholder.edit_text.await_args.args[0]
+    state.set_state.assert_awaited_with(plan_handler.PlanFlow.replace_pick)
