@@ -7,7 +7,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from core import emoji
 
-
 # Постоянная reply-клавиатура с основными действиями.
 # Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
 BTN_ADD = f"{emoji.ADD} Добавить"

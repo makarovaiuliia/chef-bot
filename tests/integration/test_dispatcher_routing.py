@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, patch
 from aiogram import Bot
 from aiogram.types import Chat, Message, Update, User
 
-from bot.main import create_dispatcher
 from core.db import Base, get_engine, session_scope
 from core.services.family_service import create_family
 
@@ -30,7 +29,7 @@ def _make_update(text: str) -> Update:
     )
 
 
-async def test_hasfamily_command_reaches_handler():
+async def test_hasfamily_command_reaches_handler(dispatcher):
     """Юзер с семьёй шлёт /menu — хендлер должен ответить, а не молчать."""
     engine = get_engine()
     async with engine.begin() as conn:
@@ -46,10 +45,9 @@ async def test_hasfamily_command_reaches_handler():
                 plan_slots=["lunch", "dinner"],
             )
 
-        dp = create_dispatcher()
         bot = Bot(token="42:TEST")
         with patch.object(Message, "answer", new_callable=AsyncMock) as answer:
-            await dp.feed_update(bot, _make_update("/menu"))
+            await dispatcher.feed_update(bot, _make_update("/menu"))
 
         answer.assert_awaited_once()
         assert "Меню не загружено" in answer.await_args.args[0]
