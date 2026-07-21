@@ -66,7 +66,8 @@ async def test_suggest_returns_options_and_logs_usage(db_session, monkeypatch):
 
     assert [o.dish_name for o in options] == ["Лосось на пару", "Креветки вок"]
     fresh = await repositories.get_meal(db_session, meal.id)
-    assert fresh.dish_name != "Лосось на пару"
+    assert fresh.dish_name == "Курица"
+    assert fresh.protein_kind == ProteinKind.chicken
     assert await repositories.count_llm_operations(
         db_session, family_id=family.id, operation="replace"
     ) == 1
@@ -74,12 +75,37 @@ async def test_suggest_returns_options_and_logs_usage(db_session, monkeypatch):
 
 async def test_apply_replacement_updates_meal_and_drops_recipe(db_session, monkeypatch):
     _, meal = await _make_family_and_meal(db_session)
+    await repositories.save_recipe(
+        db_session,
+        meal.id,
+        content_md="рецепт курицы",
+        ingredients=[{"name": "курица", "amount": "1 шт"}],
+        prep_minutes=30,
+    )
     option = ReplacementOption(dish_name="Лосось", side_dishes=["рис"], protein_kind="fish")
 
     meal2 = await apply_replacement(db_session, meal_id=meal.id, option=option)
 
     assert meal2.dish_name == "Лосось"
     assert meal2.protein_kind == ProteinKind.fish
+    assert await repositories.get_recipe(db_session, meal.id) is None
+
+
+async def test_suggest_single_alternative_raises_and_logs_nothing(db_session, monkeypatch):
+    family, meal = await _make_family_and_meal(db_session)
+    single = json.dumps(
+        {"alternatives": [{"dish_name": "Лосось", "side_dishes": ["рис"], "protein_kind": "fish"}]}
+    )
+    _mock_llm(monkeypatch, single)
+
+    with pytest.raises(LLMInvalidResponse):
+        await suggest_replacements(
+            db_session, meal_id=meal.id, hint=None, profile_md="п", family_id=family.id
+        )
+
+    assert await repositories.count_llm_operations(
+        db_session, family_id=family.id, operation="replace"
+    ) == 0
 
 
 async def test_suggest_invalid_json_raises_and_logs_nothing(db_session, monkeypatch):

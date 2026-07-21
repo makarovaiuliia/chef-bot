@@ -21,7 +21,7 @@ class ReplacementOption(BaseModel):
 
 
 class _AlternativesSchema(BaseModel):
-    alternatives: list[ReplacementOption] = Field(min_length=1, max_length=3)
+    alternatives: list[ReplacementOption] = Field(min_length=2, max_length=3)
 
 
 async def suggest_replacements(
