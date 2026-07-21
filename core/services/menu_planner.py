@@ -69,11 +69,16 @@ def _user_message(family: Family, dates: list[DateType]) -> str:
 
 def _validate_generated(parsed: _MenuSchema, dates: list[DateType], slots: list[str]) -> None:
     allowed_dates = set(dates)
+    seen: set[tuple[DateType, str]] = set()
     for m in parsed.meals:
         if m.date not in allowed_dates:
             raise LLMInvalidResponse(f"meal date {m.date} вне запрошенного диапазона")
         if m.slot.value not in slots:
             raise LLMInvalidResponse(f"slot {m.slot.value} не входит в plan_slots семьи")
+        key = (m.date, m.slot.value)
+        if key in seen:
+            raise LLMInvalidResponse(f"дубликат {m.date} {m.slot.value} в ответе LLM")
+        seen.add(key)
 
 
 async def generate_menu(

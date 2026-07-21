@@ -142,8 +142,35 @@ async def test_menu_lives_until_its_end_menus_never_deleted(db_session):
 
 async def test_delete_draft_only_deletes_draft(db_session):
     fam = await _family(db_session)
-    menu = await menu_planner.generate_menu(
+
+    draft = await menu_planner.generate_menu(
         db_session, family=fam, start_date=START, days_count=3, llm=FakeLLM([_ok_menu(3)])
     )
-    await menu_planner.delete_draft(db_session, menu_id=menu.id)
+    await menu_planner.delete_draft(db_session, menu_id=draft.id)
+    assert await db_session.get(Menu, draft.id) is None
+
+    active = await menu_planner.generate_menu(
+        db_session, family=fam, start_date=START, days_count=3, llm=FakeLLM([_ok_menu(3)])
+    )
+    await menu_planner.commit_approve(db_session, menu=active, today=START)
+    await menu_planner.delete_draft(db_session, menu_id=active.id)  # no-op: не draft
+    reloaded = await db_session.get(Menu, active.id)
+    assert reloaded is not None
+    assert reloaded.status == MenuStatus.active
+
     await menu_planner.delete_draft(db_session, menu_id=999)  # no-op, не падает
+
+
+async def test_generate_menu_rejects_duplicate_date_slot(db_session):
+    fam = await _family(db_session)
+    dup = json.dumps({"meals": [
+        {"date": START.isoformat(), "slot": "lunch", "dish_name": "Обед 1",
+         "side_dishes": [], "protein_kind": "chicken"},
+        {"date": START.isoformat(), "slot": "lunch", "dish_name": "Обед 2",
+         "side_dishes": [], "protein_kind": "fish"},
+    ]})
+    with pytest.raises(LLMInvalidResponse):
+        await menu_planner.generate_menu(
+            db_session, family=fam, start_date=START, days_count=3, llm=FakeLLM([dup, dup])
+        )
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="menu_gen") == 0
