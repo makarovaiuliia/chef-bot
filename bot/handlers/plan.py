@@ -16,18 +16,25 @@ from bot.keyboards import (
     BTN_ADD,
     BTN_FAMILY,
     BTN_TODAY,
+    kb_plan_alternatives,
     kb_plan_draft,
     kb_plan_duration,
+    kb_plan_meals,
     kb_plan_start,
     kb_retry,
 )
 from config import get_settings
-from core import emoji
+from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu
 from core.exceptions import LLMError
-from core.meal_format import format_meal_lines
+from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import menu_planner
+from core.services.dish_replacer import (
+    ReplacementOption,
+    apply_replacement,
+    suggest_replacements,
+)
 from core.services.family_service import get_admins
 
 router = Router()
@@ -196,3 +203,144 @@ async def _notify_admins(
             logger.warning(
                 "plan: admin notification failed admin_id={}", admin.telegram_user_id
             )
+
+
+async def _draft_menu(state: FSMContext, db_session: AsyncSession, family: Family) -> Menu | None:
+    data = await state.get_data()
+    menu_id = data.get("menu_id")
+    if menu_id is None:
+        return None
+    menu = await repositories.get_menu_with_meals(db_session, menu_id)
+    return menu if menu is not None and menu.family_id == family.id else None
+
+
+async def _show_draft(message: Message, state: FSMContext, menu: Menu) -> None:
+    await state.set_state(PlanFlow.draft)
+    await message.edit_text(_format_draft(menu), reply_markup=kb_plan_draft())
+
+
+@router.callback_query(PlanFlow.draft, F.data == "plan:replace")
+async def on_replace(
+    cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    menu = await _draft_menu(state, db_session, family)
+    if menu is None:
+        await cb.answer("Черновик не найден — начните заново: /plan", show_alert=True)
+        return
+    await state.set_state(PlanFlow.replace_pick)
+    await cb.message.edit_text("Какое блюдо заменить?", reply_markup=kb_plan_meals(menu.meals))
+    await cb.answer()
+
+
+@router.callback_query(PlanFlow.replace_pick, F.data.startswith("plan:rm:"))
+async def on_pick_meal(
+    cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    meal_id = int(cb.data.split(":")[-1])
+    await state.update_data(replace_meal_id=meal_id)
+    await cb.answer()
+    await _suggest_and_show(cb.message, state, family, db_session, hint=None)
+
+
+@router.message(
+    PlanFlow.replace_hint,
+    F.text,
+    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+)
+async def on_replace_hint(
+    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    # скоуп-ограниченный ввод: одна строка пожелания, не свободный чат (спека §3)
+    await _suggest_and_show(message, state, family, db_session, hint=message.text.strip())
+
+
+async def _suggest_and_show(
+    message: Message,
+    state: FSMContext,
+    family: Family,
+    db_session: AsyncSession,
+    *,
+    hint: str | None,
+) -> None:
+    data = await state.get_data()
+    meal_id = data["replace_meal_id"]
+    meal = await repositories.get_meal_for_family(db_session, meal_id, family_id=family.id)
+    if meal is None:
+        await message.answer("Блюдо не найдено — начните заново: /plan")
+        return
+    placeholder = await message.answer(f"{emoji.WAIT} Подбираю варианты...")
+    try:
+        options = await suggest_replacements(
+            db_session,
+            meal_id=meal_id,
+            hint=hint,
+            profile_md=family.profile_md or "",
+            family_id=family.id,
+        )
+    except LLMError:
+        logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
+        await placeholder.edit_text("Не получилось подобрать замену. Выберите блюдо еще раз.")
+        await state.set_state(PlanFlow.replace_pick)
+        return
+    await state.update_data(alternatives=[o.model_dump(mode="json") for o in options])
+    await state.set_state(PlanFlow.replace_alts)
+    lines = [f"Замена для «{meal.dish_name}» ({slot_label(meal.slot)}):", ""]
+    for i, o in enumerate(options, 1):
+        lines.append(f"<b>{i}.</b> {format_dish_with_sides(o.dish_name, o.side_dishes)}")
+    await placeholder.edit_text("\n".join(lines), reply_markup=kb_plan_alternatives(len(options)))
+
+
+@router.callback_query(PlanFlow.replace_alts, F.data.startswith("plan:alt:"))
+async def on_pick_alternative(
+    cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    idx = int(cb.data.split(":")[-1])
+    data = await state.get_data()
+    raw = data.get("alternatives", [])
+    if idx >= len(raw):
+        await cb.answer("Вариант не найден", show_alert=True)
+        return
+    option = ReplacementOption.model_validate(raw[idx])
+    await apply_replacement(db_session, meal_id=data["replace_meal_id"], option=option)
+    menu = await _draft_menu(state, db_session, family)
+    await cb.answer(f"Заменил на: {option.dish_name}")
+    await _show_draft(cb.message, state, menu)
+
+
+@router.callback_query(PlanFlow.replace_alts, F.data == "plan:althint")
+async def on_ask_hint(cb: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(PlanFlow.replace_hint)
+    await cb.message.answer(
+        "Опишите пожелание одной строкой (например, «что-то с рыбой, побыстрее»):",
+        reply_markup=ForceReply(input_field_placeholder="ваше пожелание"),
+    )
+    await cb.answer()
+
+
+@router.callback_query(PlanFlow.replace_pick, F.data == "plan:back")
+@router.callback_query(PlanFlow.replace_alts, F.data == "plan:back")
+async def on_back_to_draft(
+    cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    menu = await _draft_menu(state, db_session, family)
+    if menu is None:
+        await cb.answer("Черновик не найден — начните заново: /plan", show_alert=True)
+        return
+    await cb.answer()
+    await _show_draft(cb.message, state, menu)
+
+
+@router.callback_query(PlanFlow.draft, F.data == "plan:regen")
+async def on_regenerate(
+    cb: CallbackQuery,
+    state: FSMContext,
+    family: Family,
+    family_member: FamilyMember,
+    db_session: AsyncSession,
+) -> None:
+    # отдельная генерация в лимитах (спека §3); старый черновик удаляем
+    data = await state.get_data()
+    if data.get("menu_id"):
+        await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
+    await cb.answer()
+    await _generate_and_show(cb.message, state, family, family_member, db_session)

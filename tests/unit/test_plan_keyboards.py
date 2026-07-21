@@ -1,4 +1,14 @@
-from bot.keyboards import kb_plan_draft, kb_plan_duration, kb_plan_start, kb_retry
+from datetime import date
+
+from bot.keyboards import (
+    kb_plan_alternatives,
+    kb_plan_draft,
+    kb_plan_duration,
+    kb_plan_meals,
+    kb_plan_start,
+    kb_retry,
+)
+from core.db import Meal, MealSlot
 
 
 def _datas(kb):
@@ -26,3 +36,15 @@ def test_plan_draft_actions():
 
 def test_retry_keyboard():
     assert _datas(kb_retry("plan:regen")) == ["plan:regen"]
+
+
+def test_plan_meals_button_per_meal_plus_back():
+    m = Meal(date=date(2026, 7, 27), slot=MealSlot.lunch, dish_name="Тефтели", side_dishes=[])
+    m.id = 42
+    datas = _datas(kb_plan_meals([m]))
+    assert datas == ["plan:rm:42", "plan:back"]
+
+
+def test_plan_alternatives_numbered_plus_hint_and_back():
+    datas = _datas(kb_plan_alternatives(3))
+    assert datas == ["plan:alt:0", "plan:alt:1", "plan:alt:2", "plan:althint", "plan:back"]

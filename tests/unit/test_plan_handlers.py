@@ -47,3 +47,12 @@ async def test_plan_stub_when_flag_off():
     message = AsyncMock()
     await plan_handler.cmd_plan_disabled(message)
     assert "скоро" in message.answer.await_args.args[0]
+
+
+async def test_pick_alternative_out_of_range_alerts():
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:alt:5"
+    state.get_data.return_value = {"alternatives": [], "replace_meal_id": 1}
+    await plan_handler.on_pick_alternative(cb, state, _family(), db_session=None)
+    cb.answer.assert_awaited_once()
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
