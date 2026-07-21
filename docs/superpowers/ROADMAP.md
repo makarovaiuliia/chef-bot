@@ -13,6 +13,8 @@
 (4 меню / 15 замен / 15 рецептов), по исчерпании — заглушка «подписка скоро».
 Postgres. Детали — в спеке. План этапа 1:
 [2026-07-20-stage1-multitenant-core.md](plans/2026-07-20-stage1-multitenant-core.md).
+План этапа 2:
+[2026-07-20-stage2-planning.md](plans/2026-07-20-stage2-planning.md).
 
 ---
 
