@@ -10,7 +10,7 @@ from bot.filters import HasFamily
 from bot.keyboards import BTN_TODAY, kb_meal_recipes
 from core import emoji, repositories
 from core.db import Family, Meal
-from core.exceptions import LLMError
+from core.exceptions import LLMError, MealNotFound
 from core.meal_format import format_meal_lines
 from core.ru_format import format_date_short
 from core.services import recipe_service
@@ -82,5 +82,9 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
     except LLMError:
         logger.exception("recipe generation failed meal_id={}", meal_id)
         await placeholder.edit_text("Не получилось приготовить рецепт. Нажмите кнопку еще раз.")
+        return
+    except MealNotFound:
+        logger.warning("meal disappeared during recipe generation meal_id={}", meal_id)
+        await placeholder.edit_text("Блюдо не найдено — меню обновилось. Откройте /menu заново.")
         return
     await placeholder.edit_text(recipe.content_md)  # content_md уже в Telegram HTML
