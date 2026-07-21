@@ -6,7 +6,7 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from core import emoji
-
+from core.meal_format import slot_label
 
 # Постоянная reply-клавиатура с основными действиями.
 # Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
@@ -91,4 +91,80 @@ def kb_profile_confirm() -> InlineKeyboardMarkup:
     b.button(text=f"{emoji.DONE} Все верно", callback_data="onb:profile:ok")
     b.button(text=f"{emoji.EDIT} Редактировать", callback_data="onb:profile:edit")
     b.adjust(2)
+    return b.as_markup()
+
+
+def kb_plan_start() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="Сегодня", callback_data="plan:date:today")
+    b.button(text="Завтра", callback_data="plan:date:tomorrow")
+    b.button(text="Понедельник", callback_data="plan:date:monday")
+    b.button(text=f"{emoji.EDIT} Своя дата", callback_data="plan:date:custom")
+    b.adjust(3, 1)
+    return b.as_markup()
+
+
+def kb_plan_duration() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for n in (3, 5, 7):
+        b.button(text=f"{n} дн.", callback_data=f"plan:days:{n}")
+    b.adjust(3)
+    return b.as_markup()
+
+
+def kb_plan_draft() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.REPLACE} Заменить блюдо", callback_data="plan:replace")
+    b.button(text=f"{emoji.REGEN} Перегенерировать все", callback_data="plan:regen")
+    b.button(text=f"{emoji.DONE} Утвердить", callback_data="plan:approve")
+    b.adjust(1)
+    return b.as_markup()
+
+
+def kb_plan_approve_confirm() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.DONE} Да, перезаписать", callback_data="plan:approveyes")
+    b.button(text=f"{emoji.CANCEL} Нет", callback_data="plan:approveno")
+    b.adjust(2)
+    return b.as_markup()
+
+
+def kb_plan_meals(meals) -> InlineKeyboardMarkup:
+    """Выбор блюда для замены в черновике."""
+    b = InlineKeyboardBuilder()
+    for m in meals:
+        b.button(
+            text=f"{m.date.strftime('%d.%m')} · {slot_label(m.slot)}: {m.dish_name}",
+            callback_data=f"plan:rm:{m.id}",
+        )
+    b.button(text=f"{emoji.ARROW} Назад к черновику", callback_data="plan:back")
+    b.adjust(1)
+    return b.as_markup()
+
+
+def kb_plan_alternatives(count: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for i in range(count):
+        b.button(text=f"Вариант {i + 1}", callback_data=f"plan:alt:{i}")
+    b.button(text=f"{emoji.EDIT} Свое пожелание", callback_data="plan:althint")
+    b.button(text=f"{emoji.ARROW} Назад к черновику", callback_data="plan:back")
+    b.adjust(count, 1, 1)
+    return b.as_markup()
+
+
+def kb_retry(callback: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.REFRESH} Попробовать еще раз", callback_data=callback)
+    return b.as_markup()
+
+
+def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
+    """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
+    b = InlineKeyboardBuilder()
+    for m in meals:
+        b.button(
+            text=f"{emoji.RECIPE} {slot_label(m.slot)} {m.date.strftime('%d.%m')}: {m.dish_name}",
+            callback_data=f"meal:recipe:{m.id}",
+        )
+    b.adjust(1)
     return b.as_markup()

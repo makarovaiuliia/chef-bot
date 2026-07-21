@@ -14,12 +14,11 @@ from core import emoji
 from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
 from core.repositories import get_family_members
 from core.services.family_service import (
-    get_admin,
+    get_admins,
+    grant_admin,
     is_admin,
     join_by_invite,
     regenerate_invite,
-    set_can_plan,
-    transfer_admin,
 )
 
 router = Router()
@@ -30,6 +29,10 @@ INVITE_PREFIX = "inv_"
 def _name(display_name: str | None, telegram_user_id: int) -> str:
     """HTML-safe member label: display_name may contain <, >, & from Telegram."""
     return html.escape(display_name) if display_name else str(telegram_user_id)
+
+
+def _admin_names(admins) -> str:
+    return ", ".join(_name(a.display_name, a.telegram_user_id) for a in admins) or "администратор"
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(INVITE_PREFIX)))
@@ -60,9 +63,11 @@ async def start_with_invite(
         f"{emoji.DONE} Вы присоединились к семье «{family_name}»!\n"
         "Список покупок: /list, меню: /menu"
     )
-    admin = await get_admin(db_session, family_id=joined_family.id)
-    if admin and admin.telegram_user_id != member.telegram_user_id:
-        member_name = _name(member.display_name, member.telegram_user_id)
+    admins = await get_admins(db_session, family_id=joined_family.id)
+    member_name = _name(member.display_name, member.telegram_user_id)
+    for admin in admins:
+        if admin.telegram_user_id == member.telegram_user_id:
+            continue
         try:
             await message.bot.send_message(
                 admin.telegram_user_id,
@@ -70,8 +75,7 @@ async def start_with_invite(
             )
         except Exception:
             logger.warning(
-                "family: join notification failed admin_id={}",
-                admin.telegram_user_id,
+                "family: join notification failed admin_id={}", admin.telegram_user_id
             )
 
 
@@ -86,21 +90,15 @@ async def cmd_invite(message: Message, family) -> None:
 
 @router.message(Command("invite"), HasFamily())
 async def cmd_invite_denied(message: Message, db_session, family) -> None:
-    admin = await get_admin(db_session, family_id=family.id)
-    name = html.escape(admin.display_name) if admin and admin.display_name else "администратор"
+    name = _admin_names(await get_admins(db_session, family_id=family.id))
     await message.answer(f"Приглашать может только администратор ({name}).")
 
 
-def _kb_family(members, admin_id: int):
+def _kb_family(members):
     b = InlineKeyboardBuilder()
     for m in members:
-        if m.id == admin_id:
+        if is_admin(m):
             continue
-        mark = emoji.DONE if m.can_plan else emoji.UNCHECKED
-        b.button(
-            text=f"{mark} план: {m.display_name or m.telegram_user_id}",
-            callback_data=f"fam:plan:{m.id}",
-        )
         b.button(
             text=f"{emoji.CROWN} сделать админом: {m.display_name or m.telegram_user_id}",
             callback_data=f"fam:admin:{m.id}",
@@ -112,18 +110,17 @@ def _kb_family(members, admin_id: int):
 
 @router.message(Command("family"), HasFamily(), IsAdmin())
 @router.message(F.text == BTN_FAMILY, HasFamily(), IsAdmin())
-async def cmd_family(message: Message, db_session, family, family_member) -> None:
+async def cmd_family(message: Message, db_session, family) -> None:
     members = await get_family_members(db_session, family_id=family.id)
     lines = [
         f"{emoji.CROWN + ' ' if is_admin(m) else ''}"
         f"{_name(m.display_name, m.telegram_user_id)}"
-        + (" — может планировать" if m.can_plan and not is_admin(m) else "")
         for m in members
     ]
     family_name = html.escape(family.name) if family.name else "Семья"
     await message.answer(
         "Семья «{}»:\n{}".format(family_name, "\n".join(lines)),
-        reply_markup=_kb_family(members, admin_id=family_member.id),
+        reply_markup=_kb_family(members),
     )
 
 
@@ -140,32 +137,18 @@ async def cmd_family_member_view(message: Message, db_session, family) -> None:
     await message.answer("Семья «{}»:\n{}".format(family_name, "\n".join(lines)))
 
 
-@router.callback_query(F.data.startswith("fam:plan:"), IsAdmin())
-async def on_toggle_plan(cb: CallbackQuery, db_session, family, family_member) -> None:
-    member_id = int(cb.data.split(":")[-1])
-    members = await get_family_members(db_session, family_id=family.id)
-    target = next((m for m in members if m.id == member_id), None)
-    if target is None:
-        await cb.answer("Участник не найден", show_alert=True)
-        return
-    updated = await set_can_plan(db_session, member_id=member_id, value=not target.can_plan)
-    members = await get_family_members(db_session, family_id=family.id)
-    await cb.message.edit_reply_markup(
-        reply_markup=_kb_family(members, admin_id=family_member.id)
-    )
-    state = "может планировать" if updated.can_plan else "больше не планирует"
-    await cb.answer(f"{updated.display_name or 'Участник'} {state}")
-
-
 @router.callback_query(F.data.startswith("fam:admin:"), IsAdmin())
-async def on_transfer_admin(cb: CallbackQuery, db_session, family) -> None:
+async def on_grant_admin(cb: CallbackQuery, db_session, family) -> None:
     member_id = int(cb.data.split(":")[-1])
     try:
-        await transfer_admin(db_session, family_id=family.id, to_member_id=member_id)
+        member = await grant_admin(db_session, family_id=family.id, member_id=member_id)
     except MemberNotInFamily:
         await cb.answer("Участник не найден", show_alert=True)
         return
-    await cb.message.edit_text("Права администратора переданы. /family — актуальный состав.")
+    name = _name(member.display_name, member.telegram_user_id)
+    await cb.message.edit_text(
+        f"{emoji.CROWN} {name} теперь администратор. /family — актуальный состав."
+    )
     await cb.answer()
 
 

@@ -6,12 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
+from bot.handlers.start import help_text
+from config import get_settings
 from core.db import Family, FamilyMember
 from core.services import conversation
 
 router = Router()
 router.message.filter(HasFamily())
 router.callback_query.filter(HasFamily())
+
+
+def _conversation_enabled() -> bool:
+    return get_settings().conversation_enabled
 
 
 @router.message(F.text & ~F.text.startswith("/"))
@@ -23,6 +29,12 @@ async def handle_free_text(
     db_session: AsyncSession,
 ) -> None:
     if await state.get_state() is not None:
+        return
+
+    if not _conversation_enabled():
+        await message.answer(
+            "Я понимаю команды, а не свободный текст. Вот что я умею:\n\n" + help_text()
+        )
         return
 
     thinking = await message.answer("⏳ Думаю...")

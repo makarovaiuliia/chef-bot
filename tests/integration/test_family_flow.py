@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from bot.handlers.family import start_with_invite
-from core.services.family_service import create_family, get_admin, join_by_invite, resolve_member
+from core.services.family_service import create_family, get_admins, join_by_invite, resolve_member
 
 
 async def test_join_notifies_admin_target(db_session):
@@ -13,8 +13,8 @@ async def test_join_notifies_admin_target(db_session):
     _, member = await join_by_invite(
         db_session, invite_code=family.invite_code, telegram_user_id=2, display_name="Вова"
     )
-    found_admin = await get_admin(db_session, family_id=family.id)
-    assert found_admin.telegram_user_id == 1
+    admins = await get_admins(db_session, family_id=family.id)
+    assert admins[0].telegram_user_id == 1
     assert member.family_id == family.id
 
 

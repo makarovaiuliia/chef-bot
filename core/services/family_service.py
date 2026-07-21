@@ -15,10 +15,6 @@ def is_admin(member: FamilyMember) -> bool:
     return member.role == MemberRole.admin
 
 
-def has_plan_rights(member: FamilyMember) -> bool:
-    return is_admin(member) or member.can_plan
-
-
 async def resolve_member(
     session: AsyncSession, telegram_user_id: int
 ) -> tuple[Family, FamilyMember] | None:
@@ -58,7 +54,6 @@ async def create_family(
         telegram_user_id=telegram_user_id,
         display_name=display_name,
         role=MemberRole.admin,
-        can_plan=True,
     )
     session.add(member)
     await session.flush()
@@ -95,49 +90,36 @@ async def regenerate_invite(session: AsyncSession, *, family: Family) -> str:
     return family.invite_code
 
 
-async def set_can_plan(
-    session: AsyncSession, *, member_id: int, value: bool
-) -> FamilyMember:
-    member = (
-        await session.execute(select(FamilyMember).where(FamilyMember.id == member_id))
-    ).scalar_one()
-    member.can_plan = value
-    await session.flush()
-    return member
-
-
 async def update_profile(session: AsyncSession, *, family: Family, profile_md: str) -> None:
     family.profile_md = profile_md
     await session.flush()
 
 
-async def get_admin(session: AsyncSession, *, family_id: int) -> FamilyMember | None:
-    return (
+async def get_admins(session: AsyncSession, *, family_id: int) -> list[FamilyMember]:
+    stmt = (
+        select(FamilyMember)
+        .where(
+            FamilyMember.family_id == family_id,
+            FamilyMember.role == MemberRole.admin,
+        )
+        .order_by(FamilyMember.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def grant_admin(
+    session: AsyncSession, *, family_id: int, member_id: int
+) -> FamilyMember:
+    """Назначить участника администратором. Прежние админы права не теряют."""
+    member = (
         await session.execute(
             select(FamilyMember).where(
-                FamilyMember.family_id == family_id,
-                FamilyMember.role == MemberRole.admin,
+                FamilyMember.id == member_id, FamilyMember.family_id == family_id
             )
         )
     ).scalar_one_or_none()
-
-
-async def transfer_admin(
-    session: AsyncSession, *, family_id: int, to_member_id: int
-) -> None:
-    new_admin = (
-        await session.execute(
-            select(FamilyMember).where(
-                FamilyMember.id == to_member_id,
-                FamilyMember.family_id == family_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if new_admin is None:
+    if member is None:
         raise MemberNotInFamily
-    current = await get_admin(session, family_id=family_id)
-    if current is not None:
-        current.role = MemberRole.member
-    new_admin.role = MemberRole.admin
-    new_admin.can_plan = True
+    member.role = MemberRole.admin
     await session.flush()
+    return member

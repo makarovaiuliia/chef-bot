@@ -22,6 +22,10 @@ class LLMInvalidResponse(LLMError):
     pass
 
 
+class MenuTooLong(ChefBotError):
+    """Запрошенная длительность меню превышает MENU_MAX_DAYS."""
+
+
 class FamilyError(Exception):
     """Base for family-domain errors."""
 

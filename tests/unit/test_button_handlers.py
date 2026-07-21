@@ -2,7 +2,6 @@
 from unittest.mock import AsyncMock
 
 from aiogram import F
-from aiogram.filters import Command
 
 from bot.handlers import family, menu, profile, shopping
 from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
@@ -100,16 +99,14 @@ def test_profile_waiting_text_handler_excludes_keyboard_buttons():
     assert any(exclusion in f for f in on_new_text_filters)
 
 
-def test_button_routers_registered_before_freetext():
+def test_button_routers_registered_before_freetext(dispatcher):
     """Порядок include_router — контракт: кнопки не должны утекать в
     ИИ-чат (freetext). Роутеры menu/shopping/family обязаны идти раньше
     freetext-роутера в собранном Dispatcher.
     """
     from bot.handlers import freetext
-    from bot.main import create_dispatcher
 
-    dp = create_dispatcher()
-    sub_routers = list(dp.sub_routers)
+    sub_routers = list(dispatcher.sub_routers)
 
     freetext_index = sub_routers.index(freetext.router)
     for button_router in (menu.router, shopping.router, family.router):

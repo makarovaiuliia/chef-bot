@@ -206,7 +206,7 @@ class LlmUsage(Base):
     family_id: Mapped[int] = mapped_column(ForeignKey("families.id"), nullable=False)
     operation: Mapped[str] = mapped_column(
         String(30), nullable=False
-    )  # menu_gen|replace|recipe|profile
+    )  # menu_gen|replace|recipe|profile|shopping
     tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[CreatedAt]

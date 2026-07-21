@@ -1,9 +1,10 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from core import repositories
+from core.constants import MENU_MAX_DAYS
 from core.services import menu_loader, shopping_list
 from core.services.family_service import create_family
 
@@ -279,3 +280,45 @@ async def test_start_date_after_last_meal_raises(db_session):
         await menu_loader.preview_load(
             db_session, family_id=family.id, raw=raw, today=TODAY
         )
+
+
+async def test_load_rejects_horizon_over_14_days(db_session):
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
+    start = date(2026, 8, 1)
+    meals = [
+        _meal((start + timedelta(days=i)).isoformat(), "dinner", f"Блюдо {i}")
+        for i in range(MENU_MAX_DAYS + 1)
+    ]
+    raw = _menu_json(start.isoformat(), meals)
+    with pytest.raises(menu_loader.MenuLoadError, match="14"):
+        await menu_loader.preview_load(
+            db_session, family_id=family.id, raw=raw, today=start
+        )
+
+
+async def test_load_accepts_exactly_14_days(db_session):
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=111,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
+    start = date(2026, 8, 1)
+    meals = [
+        _meal((start + timedelta(days=i)).isoformat(), "dinner", f"Блюдо {i}")
+        for i in range(MENU_MAX_DAYS)
+    ]
+    raw = _menu_json(start.isoformat(), meals)
+    preview = await menu_loader.preview_load(
+        db_session, family_id=family.id, raw=raw, today=start
+    )
+    assert len(preview.parsed.meals) == MENU_MAX_DAYS

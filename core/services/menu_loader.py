@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import repositories
+from core.constants import MENU_MAX_DAYS
 from core.db import Menu
 from core.models import MealDTO
 
@@ -48,6 +49,11 @@ def _validate_range(parsed: MenuFile) -> None:
     last_date = max(m.date for m in parsed.meals)
     if last_date < parsed.start_date:
         raise MenuLoadError("start_date позже последней даты в meals")
+    horizon = (last_date - parsed.start_date).days + 1
+    if horizon > MENU_MAX_DAYS:
+        raise MenuLoadError(
+            f"горизонт меню {horizon} дн. — максимум {MENU_MAX_DAYS} дн. от start_date"
+        )
 
 
 async def preview_load(
