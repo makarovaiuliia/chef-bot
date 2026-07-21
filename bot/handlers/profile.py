@@ -1,3 +1,5 @@
+import html
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -9,7 +11,7 @@ from bot.formatting import md_to_telegram_html
 from bot.fsm import ProfileEdit
 from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
 from core import emoji
-from core.services.family_service import get_admin, is_admin, update_profile
+from core.services.family_service import get_admins, is_admin, update_profile
 
 router = Router()
 router.message.filter(HasFamily())
@@ -45,9 +47,12 @@ async def on_edit(cb: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "profile:edit")
 async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
-    admin = await get_admin(db_session, family_id=family.id)
-    name = admin.display_name if admin else "администратор"
-    await cb.answer(f"Профиль может менять только {name}", show_alert=True)
+    admins = await get_admins(db_session, family_id=family.id)
+    names = ", ".join(
+        html.escape(a.display_name) if a.display_name else str(a.telegram_user_id)
+        for a in admins
+    ) or "администратор"
+    await cb.answer(f"Профиль может менять только {names}", show_alert=True)
 
 
 @router.message(
