@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.filters import HasFamily
+from bot.filters import HasFamily, IsAdmin
 from bot.fsm import LoadConfirm
 from bot.keyboards import kb_confirm_overwrite
 from core import emoji
@@ -15,8 +15,8 @@ from core.services import menu_loader
 from core.services.menu_loader import MenuFile, MenuLoadError
 
 router = Router()
-router.message.filter(HasFamily())
-router.callback_query.filter(HasFamily())
+router.message.filter(HasFamily(), IsAdmin())
+router.callback_query.filter(HasFamily(), IsAdmin())
 
 _MAX_BYTES = 1_000_000
 
