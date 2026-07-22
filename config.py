@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     trial_menu_gen_limit: int = 4
     trial_replace_limit: int = 15
     trial_recipe_limit: int = 15
+    trial_shopping_limit: int = 10
     monthly_token_cap_per_family: int = 500_000
 
     # суперадмины — операторы продукта, ОТДЕЛЬНЫЙ слой доверия, не роль семьи (роадмап)

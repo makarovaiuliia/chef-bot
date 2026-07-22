@@ -928,7 +928,7 @@ git commit -m "feat(admin): /admin superadmin summary — families, ops, tokens,
 **Interfaces:**
 - Consumes: `Family.sub_until` (Task 2), `IsSuperadmin` + admin router (Task 4), denial-места с kb подписки (Task 3).
 - Produces:
-  - `Settings.sub_monthly_token_cap_per_family: int = 2_000_000` (env `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY`) — потолок подписчика.
+  - `Settings.sub_monthly_token_cap_per_family: int = 600_000` (env `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY`) — потолок подписчика.
   - `limits.subscription_active(family: Family, today: date | None = None) -> bool` — `sub_until >= today` (UTC-дата).
   - `limits.ensure_within_limits` — грузит семью (`session.get(Family, family_id)`); при активной подписке триал-счетчики НЕ проверяются, потолок — подписочный, при превышении `MonthlyCapExceeded(subscribed=True)`; без подписки — прежнее поведение.
   - `MonthlyCapExceeded(subscribed: bool = False)` (существующие `raise MonthlyCapExceeded` продолжают работать); `denial_text` для subscribed-потолка — текст БЕЗ питча «подписка готовится»: «Месячный лимит подписки исчерпан — обновится 1-го числа следующего месяца.»
@@ -1073,7 +1073,7 @@ Run: → FAIL.
 
 ```python
     # месячный потолок токенов семьи с активной подпиской (выдана /grant)
-    sub_monthly_token_cap_per_family: int = 2_000_000
+    sub_monthly_token_cap_per_family: int = 600_000
 ```
 
 `.env.example`: `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY=` с комментарием «потолок токенов подписчика».
@@ -1245,7 +1245,7 @@ git commit -m "feat(admin): manual subscription via /grant and /revoke, subscrib
   - `shopping_list.format_items_text(items) -> str` — «• name — quantity» построчно (работает и с ItemDraft, и с ShoppingItem — по атрибутам name/quantity).
   - `repositories.items_for_menu(session, *, menu_id: int) -> list[ShoppingItem]` — пункты списка данного меню.
   - `keyboards.kb_shoplist_offer(menu_id)` — ДВЕ кнопки: «В список /list» (`plan:shoplist:<id>`) и «Показать текстом» (`plan:shoptext:<id>`).
-  - Хендлер `on_shoplist_text` в plan.py (`plan:shoptext:`, ДО catch-all): если список в БД уже есть — рендер из БД без LLM; иначе `generate_items` → текст (БЕЗ записи в БД — кнопка «В список» останется рабочей и вызовет LLM снова, потолок стережет).
+  - Хендлер `on_shoplist_text` в plan.py (`plan:shoptext:`, ДО catch-all): если список в БД уже есть — рендер из БД без LLM; иначе `generate_items` → текст (БЕЗ записи в БД — кнопка «В список» останется рабочей и вызовет LLM снова, стерегут триал-лимит shopping и потолок).
 
 - [ ] **Step 1: Падающие тесты**
 

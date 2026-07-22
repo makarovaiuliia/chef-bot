@@ -69,13 +69,26 @@ async def test_trial_limits_are_per_operation(db_session, monkeypatch):
     await limits.ensure_within_limits(db_session, family_id=fam.id, operation="replace", now=NOW)
 
 
-async def test_shopping_has_no_trial_limit_but_hits_cap(db_session, monkeypatch):
+async def test_shopping_trial_limit_blocks_after_n_operations(db_session, monkeypatch):
+    fam = await _family(db_session)
+    monkeypatch.setattr(get_settings(), "trial_shopping_limit", 2)
+    for _ in range(2):
+        await log_llm_usage(
+            db_session, family_id=fam.id, operation="shopping", tokens_in=1, tokens_out=1
+        )
+    with pytest.raises(TrialLimitExceeded) as exc_info:
+        await limits.ensure_within_limits(
+            db_session, family_id=fam.id, operation="shopping", now=NOW
+        )
+    assert exc_info.value.operation == "shopping"
+
+
+async def test_shopping_hits_monthly_cap(db_session, monkeypatch):
     fam = await _family(db_session)
     monkeypatch.setattr(get_settings(), "monthly_token_cap_per_family", 100)
     await log_llm_usage(
         db_session, family_id=fam.id, operation="shopping", tokens_in=60, tokens_out=60
     )
-    # триал для shopping не проверяется, но потолок — да
     with pytest.raises(MonthlyCapExceeded):
         await limits.ensure_within_limits(
             db_session, family_id=fam.id, operation="shopping", now=NOW
@@ -89,4 +102,5 @@ async def test_under_all_limits_passes(db_session):
 
 def test_denial_texts():
     assert "лимит" in limits.denial_text(TrialLimitExceeded("menu_gen")).lower()
+    assert "списков покупок" in limits.denial_text(TrialLimitExceeded("shopping"))
     assert "1-го числа" in limits.denial_text(MonthlyCapExceeded())

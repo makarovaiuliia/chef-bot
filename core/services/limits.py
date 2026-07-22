@@ -3,8 +3,6 @@
 Вызывается сервисами ПЕРЕД каждым LLM-вызовом. Триал — разовый (пожизненный)
 лимит по числу операций; потолок — сумма токенов за календарный месяц (UTC).
 Генерация профиля в онбординге сюда не ходит (вне лимитов, семьи еще нет).
-Операция "shopping" не имеет триал-лимита (часть планирования), но токены
-считаются в потолке.
 """
 from datetime import UTC, datetime
 
@@ -21,6 +19,7 @@ def _trial_limits() -> dict[str, int]:
         "menu_gen": s.trial_menu_gen_limit,
         "replace": s.trial_replace_limit,
         "recipe": s.trial_recipe_limit,
+        "shopping": s.trial_shopping_limit,
     }
 
 
@@ -46,6 +45,7 @@ _OPERATION_LABELS = {
     "menu_gen": "генераций меню",
     "replace": "замен блюд",
     "recipe": "рецептов",
+    "shopping": "списков покупок",
 }
 
 
