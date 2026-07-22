@@ -252,7 +252,25 @@ async def test_cmd_plan_deletes_orphan_draft(monkeypatch):
 async def test_plan_reminder_callback_starts_flow():
     cb, state = AsyncMock(), AsyncMock()
     cb.data = "plan:remind"
-    await plan_handler.on_plan_reminder(cb, state)
+    state.get_data.return_value = {}
+    await plan_handler.on_plan_reminder(cb, state, db_session=None)
     state.clear.assert_awaited_once()
     state.set_state.assert_awaited_once_with(plan_handler.PlanFlow.start_date)
     assert "С какого дня" in cb.message.answer.await_args.args[0]
+
+
+async def test_plan_reminder_deletes_orphan_draft(monkeypatch):
+    deleted = {}
+
+    async def fake_delete(session, *, menu_id):
+        deleted["menu_id"] = menu_id
+
+    monkeypatch.setattr(plan_handler.menu_planner, "delete_draft", fake_delete)
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:remind"
+    state.get_data.return_value = {"menu_id": 42}
+
+    await plan_handler.on_plan_reminder(cb, state, db_session=None)
+
+    assert deleted["menu_id"] == 42
+    state.clear.assert_awaited_once()

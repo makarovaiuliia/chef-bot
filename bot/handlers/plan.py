@@ -62,10 +62,8 @@ async def cmd_plan_disabled(message: Message) -> None:
     )
 
 
-@router.message(Command("plan"), IsAdmin())
-async def cmd_plan(
-    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
-) -> None:
+async def _start_plan_flow(message: Message, state: FSMContext, db_session: AsyncSession) -> None:
+    """Общий вход в PlanFlow.start_date: чистит сиротский черновик перед стартом."""
     data = await state.get_data()
     orphan_id = data.get("menu_id")
     if orphan_id:
@@ -73,6 +71,13 @@ async def cmd_plan(
     await state.clear()
     await state.set_state(PlanFlow.start_date)
     await message.answer("С какого дня планируем меню?", reply_markup=kb_plan_start())
+
+
+@router.message(Command("plan"), IsAdmin())
+async def cmd_plan(
+    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    await _start_plan_flow(message, state, db_session)
 
 
 @router.message(Command("plan"))
@@ -490,11 +495,9 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
 
 
 @router.callback_query(F.data == "plan:remind")
-async def on_plan_reminder(cb: CallbackQuery, state: FSMContext) -> None:
+async def on_plan_reminder(cb: CallbackQuery, state: FSMContext, db_session: AsyncSession) -> None:
     """Кнопка из напоминания «меню заканчивается» — запускает флоу /plan."""
-    await state.clear()
-    await state.set_state(PlanFlow.start_date)
-    await cb.message.answer("С какого дня планируем меню?", reply_markup=kb_plan_start())
+    await _start_plan_flow(cb.message, state, db_session)
     await cb.answer()
 
 
