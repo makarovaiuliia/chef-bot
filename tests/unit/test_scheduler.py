@@ -1,6 +1,7 @@
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
+import bot.scheduler as scheduler
 from bot.scheduler import families_due
 
 # 2026-07-21 02:07 UTC == 09:07 в Бангкоке (UTC+7)
@@ -40,3 +41,25 @@ def test_digest_disabled_family_still_due():
     # семья с выключенным дайджестом остается due — для напоминания о планировании
     fams = [_family(1, enabled=False)]
     assert families_due(fams, now=NOW, last_sent={}) == fams
+
+
+async def test_tick_family_marks_last_sent_on_success(monkeypatch):
+    async def ok(bot, sessionmaker, family, today):
+        return None
+
+    monkeypatch.setattr(scheduler, "_process_due_family", ok)
+    fam = _family(1)
+    last_sent: dict[int, date] = {}
+    await scheduler._tick_family(None, None, fam, NOW, last_sent)
+    assert last_sent[1] == date(2026, 7, 21)
+
+
+async def test_tick_family_does_not_mark_last_sent_on_failure(monkeypatch):
+    async def boom(bot, sessionmaker, family, today):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(scheduler, "_process_due_family", boom)
+    fam = _family(1)
+    last_sent: dict[int, date] = {}
+    await scheduler._tick_family(None, None, fam, NOW, last_sent)
+    assert 1 not in last_sent
