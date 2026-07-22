@@ -9,6 +9,7 @@ from core.services.family_service import (
     join_by_invite,
     regenerate_invite,
     resolve_member,
+    update_digest_settings,
 )
 
 
@@ -88,3 +89,13 @@ async def test_regenerate_invite_changes_code(db_session):
     old = family.invite_code
     new = await regenerate_invite(db_session, family=family)
     assert new != old and family.invite_code == new
+
+
+async def test_update_digest_settings(db_session):
+    family, _ = await _make_family(db_session)
+    await update_digest_settings(db_session, family=family, enabled=False)
+    assert family.digest_enabled is False
+    await update_digest_settings(db_session, family=family, hour=7)
+    assert family.digest_hour == 7
+    with pytest.raises(ValueError):
+        await update_digest_settings(db_session, family=family, hour=3)
