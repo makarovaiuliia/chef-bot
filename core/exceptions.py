@@ -40,3 +40,17 @@ class AlreadyInFamily(FamilyError):
 
 class MemberNotInFamily(FamilyError):
     pass
+
+
+class LimitExceeded(ChefBotError):
+    """База: лимит триала или месячный токен-потолок исчерпан."""
+
+
+class TrialLimitExceeded(LimitExceeded):
+    def __init__(self, operation: str) -> None:
+        self.operation = operation
+        super().__init__(operation)
+
+
+class MonthlyCapExceeded(LimitExceeded):
+    pass

@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     conversation_enabled: bool = False
     planning_enabled: bool = False
 
+    # спека §6: разовый (пожизненный) триал на семью + месячный anti-abuse потолок
+    trial_menu_gen_limit: int = 4
+    trial_replace_limit: int = 15
+    trial_recipe_limit: int = 15
+    monthly_token_cap_per_family: int = 500_000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

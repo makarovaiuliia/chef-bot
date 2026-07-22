@@ -318,6 +318,18 @@ async def count_llm_operations(
     return int(result.scalar_one())
 
 
+async def sum_llm_tokens_current_month(
+    session: AsyncSession, *, family_id: int, now: datetime
+) -> int:
+    """Сумма токенов семьи с 1-го числа календарного месяца `now` (UTC)."""
+    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+    stmt = (
+        select(func.coalesce(func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out), 0))
+        .where(LlmUsage.family_id == family_id, LlmUsage.created_at >= month_start)
+    )
+    return int((await session.execute(stmt)).scalar_one())
+
+
 async def recent_conversation(
     session: AsyncSession, *, family_id: int, limit: int = 20
 ) -> list[ClaudeConversation]:
