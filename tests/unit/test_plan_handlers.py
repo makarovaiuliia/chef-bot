@@ -49,6 +49,31 @@ async def test_generation_trial_denial_shows_polite_text(monkeypatch):
     placeholder = message.answer.return_value
     text = placeholder.edit_text.await_args.args[0]
     assert "лимит" in text.lower() and "подписка" in text.lower()
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
+    state.clear.assert_awaited_once()
+
+
+async def test_suggest_trial_denial_shows_polite_text_with_button(monkeypatch):
+    from core.exceptions import TrialLimitExceeded
+
+    async def blocked(*a, **kw):
+        raise TrialLimitExceeded("replace")
+
+    monkeypatch.setattr(plan_handler, "suggest_replacements", blocked)
+    monkeypatch.setattr(
+        plan_handler.repositories,
+        "get_meal_for_family",
+        AsyncMock(return_value=SimpleNamespace(dish_name="Рыба")),
+    )
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"replace_meal_id": 1}
+
+    await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint=None)
+
+    placeholder = message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "лимит" in text.lower() and "подписка" in text.lower()
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
     state.clear.assert_awaited_once()
 
 
@@ -203,6 +228,25 @@ async def test_build_shopping_success_reports_count(monkeypatch):
 
     placeholder = message.answer.return_value
     assert "3" in placeholder.edit_text.await_args.args[0]
+
+
+async def test_build_shopping_monthly_cap_denial_no_approved_prefix(monkeypatch):
+    from core.exceptions import MonthlyCapExceeded
+
+    async def blocked(*a, **kw):
+        raise MonthlyCapExceeded
+
+    monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", blocked)
+    message = AsyncMock()
+    menu = SimpleNamespace(id=7, days_count=3, start_date=date(2026, 7, 27), meals=[])
+
+    await plan_handler._build_shopping(message, _family(), db_session=None, menu=menu)
+
+    placeholder = message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "Меню утверждено" not in text
+    assert "лимит" in text.lower()
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
 
 
 async def test_build_shoplist_rejects_draft_menu(monkeypatch):

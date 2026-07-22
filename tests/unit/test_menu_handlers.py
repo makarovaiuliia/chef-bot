@@ -33,3 +33,26 @@ async def test_cmd_today_keeps_recipe_buttons(monkeypatch):
     await menu_handler.cmd_today(message, SimpleNamespace(id=1), db_session=None)
 
     assert message.answer.await_args.kwargs.get("reply_markup") is not None
+
+
+async def test_cb_recipe_trial_denial_shows_polite_text_with_button(monkeypatch):
+    from core.exceptions import TrialLimitExceeded
+
+    async def blocked(*a, **kw):
+        raise TrialLimitExceeded("recipe")
+
+    monkeypatch.setattr(
+        menu_handler.repositories,
+        "get_meal_for_family",
+        AsyncMock(return_value=SimpleNamespace(id=1)),
+    )
+    monkeypatch.setattr(menu_handler.recipe_service, "get_recipe", blocked)
+    cb = AsyncMock()
+    cb.data = "meal:recipe:1"
+
+    await menu_handler.cb_recipe(cb, SimpleNamespace(id=1, profile_md=""), db_session=None)
+
+    placeholder = cb.message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "лимит" in text.lower() and "подписка" in text.lower()
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None

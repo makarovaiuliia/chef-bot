@@ -186,6 +186,12 @@ def kb_settings(family) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_want_subscription() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.DONE} Хочу подписку", callback_data="sub:want")
+    return b.as_markup()
+
+
 def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
     """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
     b = InlineKeyboardBuilder()

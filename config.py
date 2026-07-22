@@ -1,7 +1,8 @@
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,6 +19,16 @@ class Settings(BaseSettings):
     trial_replace_limit: int = 15
     trial_recipe_limit: int = 15
     monthly_token_cap_per_family: int = 500_000
+
+    # суперадмины — операторы продукта, ОТДЕЛЬНЫЙ слой доверия, не роль семьи (роадмап)
+    superadmin_ids: Annotated[list[int], NoDecode] = []
+
+    @field_validator("superadmin_ids", mode="before")
+    @classmethod
+    def _parse_superadmin_ids(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [int(x) for x in v.split(",") if x.strip()]
+        return v
 
     model_config = SettingsConfigDict(
         env_file=".env",

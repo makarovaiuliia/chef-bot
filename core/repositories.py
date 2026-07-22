@@ -18,6 +18,7 @@ from core.db import (
     ProteinKind,
     Recipe,
     ShoppingItem,
+    SubscriptionRequest,
 )
 
 # завтрак → обед → ужин; строковый порядок enum'а ("breakfast" < "dinner" < "lunch") не годится
@@ -333,6 +334,33 @@ async def sum_llm_tokens_current_month(
         .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
+
+
+async def add_subscription_request(
+    session: AsyncSession, *, family_id: int, telegram_user_id: int
+) -> bool:
+    """Заявка «хочу подписку». True — новая; False — по семье уже есть."""
+    existing = (
+        await session.execute(
+            select(SubscriptionRequest.id).where(
+                SubscriptionRequest.family_id == family_id
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return False
+    session.add(
+        SubscriptionRequest(family_id=family_id, telegram_user_id=telegram_user_id)
+    )
+    await session.flush()
+    return True
+
+
+async def count_subscription_requests(session: AsyncSession) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(SubscriptionRequest)
+    )
+    return int(result.scalar_one())
 
 
 async def recent_conversation(

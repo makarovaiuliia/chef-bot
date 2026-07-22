@@ -7,7 +7,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
-from bot.keyboards import BTN_TODAY, kb_meal_recipes
+from bot.keyboards import BTN_TODAY, kb_meal_recipes, kb_want_subscription
 from core import emoji, repositories
 from core.db import Family, Meal
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
@@ -81,7 +81,7 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
             db_session, meal_id=meal.id, profile_md=family.profile_md or "", family_id=family.id
         )
     except LimitExceeded as e:
-        await placeholder.edit_text(denial_text(e))
+        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
         return
     except LLMError:
         logger.exception("recipe generation failed meal_id={}", meal_id)

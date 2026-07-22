@@ -24,6 +24,7 @@ from bot.keyboards import (
     kb_plan_start,
     kb_retry,
     kb_shoplist_offer,
+    kb_want_subscription,
 )
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
@@ -167,7 +168,7 @@ async def _generate_and_show(
         )
     except LimitExceeded as e:
         await state.clear()
-        await placeholder.edit_text(denial_text(e))
+        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
         return
     except LLMError:  # LLMInvalidResponse — подкласс; авто-retry уже был внутри
         logger.exception("plan: menu generation failed family_id={}", family.id)
@@ -285,7 +286,7 @@ async def _suggest_and_show(
         )
     except LimitExceeded as e:
         await state.clear()
-        await placeholder.edit_text(denial_text(e))
+        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
         return
     except LLMError:
         logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
@@ -443,7 +444,7 @@ async def _build_shopping(message: Message, family: Family,
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
         )
     except LimitExceeded as e:
-        await placeholder.edit_text(f"Меню утверждено. {denial_text(e)}")
+        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
         return
     except LLMError:
         logger.exception("plan: shopping list build failed menu_id={}", menu.id)
