@@ -1,43 +1,42 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import UTC, date, datetime
+from types import SimpleNamespace
 
-from bot.scheduler import DIGEST_HOUR, seconds_until_next, start_scheduler
+from bot.scheduler import families_due
 
-BKK = ZoneInfo("Asia/Bangkok")
-
-
-def test_digest_scheduled_for_nine():
-    assert DIGEST_HOUR == 9
+# 2026-07-21 02:07 UTC == 09:07 в Бангкоке (UTC+7)
+NOW = datetime(2026, 7, 21, 2, 7, tzinfo=UTC)
 
 
-async def test_start_scheduler_runs_only_digest_task():
-    tasks = start_scheduler(bot=None, sessionmaker=None)
-    try:
-        assert [t.get_name() for t in tasks] == ["digest"]
-    finally:
-        for t in tasks:
-            t.cancel()
+def _family(fid, tz="Asia/Bangkok", hour=9, enabled=True):
+    return SimpleNamespace(id=fid, timezone=tz, digest_hour=hour, digest_enabled=enabled)
 
 
-def test_target_later_today():
-    now = datetime(2026, 5, 27, 6, 0, tzinfo=BKK)
-    secs = seconds_until_next(8, 0, BKK, now=now)
-    assert secs == 2 * 3600
+def test_due_when_local_hour_matches():
+    fams = [_family(1)]
+    assert families_due(fams, now=NOW, last_sent={}) == fams
 
 
-def test_target_already_passed_today_rolls_to_tomorrow():
-    now = datetime(2026, 5, 27, 9, 0, tzinfo=BKK)
-    secs = seconds_until_next(8, 0, BKK, now=now)
-    assert secs == 23 * 3600
+def test_not_due_wrong_hour():
+    assert families_due([_family(1, hour=8)], now=NOW, last_sent={}) == []
 
 
-def test_exact_match_rolls_to_tomorrow():
-    now = datetime(2026, 5, 27, 8, 0, tzinfo=BKK)
-    secs = seconds_until_next(8, 0, BKK, now=now)
-    assert secs == 24 * 3600
+def test_not_due_when_already_sent_today():
+    bkk_today = date(2026, 7, 21)
+    assert families_due([_family(1)], now=NOW, last_sent={1: bkk_today}) == []
 
 
-def test_handles_now_in_different_tz():
-    now_utc = datetime(2026, 5, 27, 0, 0, tzinfo=ZoneInfo("UTC"))
-    secs = seconds_until_next(8, 0, BKK, now=now_utc)
-    assert secs == 1 * 3600
+def test_due_respects_timezone():
+    # в UTC сейчас 02 часа — семья с UTC и hour=2 due, с hour=9 нет
+    assert families_due([_family(1, tz="UTC", hour=2)], now=NOW, last_sent={}) != []
+    assert families_due([_family(2, tz="UTC", hour=9)], now=NOW, last_sent={}) == []
+
+
+def test_invalid_timezone_falls_back_to_utc():
+    fams = [_family(1, tz="Каир", hour=2)]
+    assert families_due(fams, now=NOW, last_sent={}) == fams
+
+
+def test_digest_disabled_family_still_due():
+    # семья с выключенным дайджестом остается due — для напоминания о планировании
+    fams = [_family(1, enabled=False)]
+    assert families_due(fams, now=NOW, last_sent={}) == fams
