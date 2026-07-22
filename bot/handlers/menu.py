@@ -48,7 +48,7 @@ async def cmd_menu(
             "Меню не загружено. Пришли JSON-файл с меню."
         )
         return
-    await message.answer(_format_future_meals(meals, today), reply_markup=kb_meal_recipes(meals))
+    await message.answer(_format_future_meals(meals, today))
 
 
 @router.message(Command("today"))

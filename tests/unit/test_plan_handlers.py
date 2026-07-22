@@ -222,6 +222,33 @@ async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch
     assert placeholder.edit_text.await_args.kwargs["reply_markup"] is not None
 
 
+async def test_custom_date_ignores_commands():
+    """Хендлер on_custom_date не должен матчить команды — проверяем фильтр."""
+    from tests.unit.test_button_handlers import _registered_filters
+
+    filters_by_handler = dict(_registered_filters(plan_handler.router))
+    on_custom = filters_by_handler["on_custom_date"]
+    assert any("startswith" in f and "/" in f for f in on_custom)
+    on_hint = filters_by_handler["on_replace_hint"]
+    assert any("startswith" in f and "/" in f for f in on_hint)
+
+
+async def test_cmd_plan_deletes_orphan_draft(monkeypatch):
+    deleted = {}
+
+    async def fake_delete(session, *, menu_id):
+        deleted["menu_id"] = menu_id
+
+    monkeypatch.setattr(plan_handler.menu_planner, "delete_draft", fake_delete)
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"menu_id": 42}
+
+    await plan_handler.cmd_plan(message, state, _family(), db_session=None)
+
+    assert deleted["menu_id"] == 42
+    state.clear.assert_awaited_once()
+
+
 async def test_plan_reminder_callback_starts_flow():
     cb, state = AsyncMock(), AsyncMock()
     cb.data = "plan:remind"

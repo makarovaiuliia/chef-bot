@@ -63,7 +63,13 @@ async def cmd_plan_disabled(message: Message) -> None:
 
 
 @router.message(Command("plan"), IsAdmin())
-async def cmd_plan(message: Message, state: FSMContext, family: Family) -> None:
+async def cmd_plan(
+    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    data = await state.get_data()
+    orphan_id = data.get("menu_id")
+    if orphan_id:
+        await menu_planner.delete_draft(db_session, menu_id=orphan_id)
     await state.clear()
     await state.set_state(PlanFlow.start_date)
     await message.answer("С какого дня планируем меню?", reply_markup=kb_plan_start())
@@ -104,6 +110,7 @@ async def on_start_date(cb: CallbackQuery, state: FSMContext, family: Family) ->
     PlanFlow.custom_date,
     F.text,
     ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
 )
 async def on_custom_date(message: Message, state: FSMContext, family: Family) -> None:
     today = menu_planner.family_today(family)
@@ -257,6 +264,7 @@ async def on_pick_meal(
     PlanFlow.replace_hint,
     F.text,
     ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
 )
 async def on_replace_hint(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession

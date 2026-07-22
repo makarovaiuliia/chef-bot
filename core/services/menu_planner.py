@@ -48,19 +48,29 @@ def parse_start_date(text: str, today: DateType) -> DateType | None:
         except ValueError:
             continue
     if parsed is None:
-        try:
-            parsed = datetime.strptime(text, "%d.%m").date().replace(year=today.year)
-            if parsed < today:
-                parsed = parsed.replace(year=today.year + 1)
-        except ValueError:
+        parts = text.split(".")
+        if len(parts) == 2 and all(p.isdigit() for p in parts):
+            day, month = int(parts[0]), int(parts[1])
+            for year in range(today.year, today.year + 5):
+                try:
+                    candidate = DateType(year, month, day)
+                except ValueError:
+                    continue  # 29.02 в невисокосном году
+                if candidate >= today:
+                    parsed = candidate
+                    break
+        if parsed is None:
             return None
     return parsed if parsed >= today else None
+
+
+_RU_WEEKDAYS = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
 
 
 def _user_message(family: Family, dates: list[DateType]) -> str:
     slots = family.plan_slots or ["lunch", "dinner"]
     slot_names = ", ".join(slot_label(MealSlot(s)) for s in slots)
-    date_lines = "\n".join(f"- {d.isoformat()} ({d.strftime('%a')})" for d in dates)
+    date_lines = "\n".join(f"- {d.isoformat()} ({_RU_WEEKDAYS[d.weekday()]})" for d in dates)
     return (
         f"Составь меню на {len(dates)} дн.\n"
         f"Приемы пищи: {slot_names} (slot-значения: {', '.join(slots)}).\n"
