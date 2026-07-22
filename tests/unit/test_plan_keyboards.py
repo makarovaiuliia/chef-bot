@@ -8,6 +8,7 @@ from bot.keyboards import (
     kb_plan_meals,
     kb_plan_start,
     kb_retry,
+    kb_shoplist_offer,
 )
 from core.db import Meal, MealSlot
 
@@ -54,3 +55,7 @@ def test_plan_alternatives_numbered_plus_hint_and_back():
 def test_plan_approve_confirm_buttons():
     datas = _datas(kb_plan_approve_confirm())
     assert datas == ["plan:approveyes", "plan:approveno"]
+
+
+def test_shoplist_offer_button():
+    assert _datas(kb_shoplist_offer(7)) == ["plan:shoplist:7"]

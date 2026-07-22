@@ -135,6 +135,51 @@ async def test_suggest_llm_error_returns_to_pick(monkeypatch):
     state.set_state.assert_awaited_with(plan_handler.PlanFlow.replace_pick)
 
 
+async def test_do_approve_offers_shoplist_instead_of_building(monkeypatch):
+    built = False
+
+    async def fake_build(*a, **kw):
+        nonlocal built
+        built = True
+
+    monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", fake_build)
+    commit = AsyncMock()
+    monkeypatch.setattr(plan_handler.menu_planner, "commit_approve", commit)
+    notify = AsyncMock()
+    monkeypatch.setattr(plan_handler, "_notify_admins", notify)
+
+    message, state = AsyncMock(), AsyncMock()
+    menu = SimpleNamespace(id=7, days_count=5, start_date=date(2026, 7, 27), meals=[])
+    member = SimpleNamespace(display_name="Юля", telegram_user_id=1, role="admin")
+
+    await plan_handler._do_approve(
+        message, state, _family(), member, None, menu, date(2026, 7, 27)
+    )
+
+    assert built is False  # сборка не запускается автоматически
+    offer_text = message.answer.await_args.args[0]
+    assert "список покупок" in offer_text.lower()
+    assert message.answer.await_args.kwargs["reply_markup"] is not None
+
+
+async def test_build_shoplist_rejects_draft_menu(monkeypatch):
+    from core.db import MenuStatus
+
+    menu = SimpleNamespace(id=7, family_id=1, status=MenuStatus.draft, meals=[])
+
+    async def fake_get(*a, **kw):
+        return menu
+
+    monkeypatch.setattr(plan_handler.repositories, "get_menu_with_meals", fake_get)
+    cb = AsyncMock()
+    cb.data = "plan:shoplist:7"
+
+    await plan_handler.on_build_shoplist(cb, _family(), db_session=None)
+
+    cb.answer.assert_awaited_once()
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+
+
 async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch):
     async def boom(*a, **kw):
         raise LLMInvalidResponse("bad")

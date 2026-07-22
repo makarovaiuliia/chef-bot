@@ -158,6 +158,15 @@ def kb_retry(callback: str) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_shoplist_offer(menu_id: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(
+        text=f"{emoji.SHOPPING} Составить список покупок",
+        callback_data=f"plan:shoplist:{menu_id}",
+    )
+    return b.as_markup()
+
+
 def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
     """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
     b = InlineKeyboardBuilder()
