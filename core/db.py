@@ -88,6 +88,9 @@ class Family(Base):
     digest_enabled: Mapped[bool] = mapped_column(
         default=True, server_default=sa_true(), nullable=False
     )
+    # подписка активна по эту дату включительно; выставляет суперадмин /grant
+    # после ручной оплаты (None — подписки нет, работают триал-лимиты)
+    sub_until: Mapped[DateType | None] = mapped_column(Date)
     plan_slots: Mapped[list[str]] = mapped_column(
         JSON, default=lambda: ["lunch", "dinner"], nullable=False
     )
@@ -173,7 +176,7 @@ class ShoppingList(Base):
     __tablename__ = "shopping_lists"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    menu_id: Mapped[int] = mapped_column(ForeignKey("menus.id"), nullable=False)
+    menu_id: Mapped[int] = mapped_column(ForeignKey("menus.id"), nullable=False, unique=True)
     created_at: Mapped[CreatedAt]
 
 
@@ -205,6 +208,19 @@ class LlmUsage(Base):
     )  # menu_gen|replace|recipe|profile|shopping
     tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[CreatedAt]
+
+
+class SubscriptionRequest(Base):
+    """Заявка «хочу подписку» с заглушки лимитов — одна на семью (проверка спроса)."""
+
+    __tablename__ = "subscription_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id"), nullable=False, unique=True
+    )
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     created_at: Mapped[CreatedAt]
 
 

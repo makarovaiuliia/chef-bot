@@ -56,3 +56,23 @@ def test_llm_usage_model_columns():
 
 def test_family_member_has_no_can_plan():
     assert not hasattr(FamilyMember(family_id=1, telegram_user_id=1), "can_plan")
+
+
+def test_subscription_request_model():
+    from core.db import SubscriptionRequest
+
+    r = SubscriptionRequest(family_id=1, telegram_user_id=42)
+    assert r.family_id == 1
+
+
+def test_family_sub_until_nullable():
+    from core.db import Family
+
+    c = Family.__table__.c.sub_until
+    assert c.nullable and c.default is None
+
+
+def test_shopping_list_menu_id_unique():
+    from core.db import ShoppingList
+
+    assert ShoppingList.__table__.c.menu_id.unique
