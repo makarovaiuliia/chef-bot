@@ -4,9 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from config import get_settings
 from core import repositories
 from core.db import ProteinKind
-from core.exceptions import LLMInvalidResponse
+from core.exceptions import LLMInvalidResponse, TrialLimitExceeded
 from core.llm import LLMResponse
 from core.services import dish_replacer
 from core.services.dish_replacer import ReplacementOption, apply_replacement, suggest_replacements
@@ -120,6 +121,22 @@ async def test_suggest_invalid_json_raises_and_logs_nothing(db_session, monkeypa
     assert await repositories.count_llm_operations(
         db_session, family_id=family.id, operation="replace"
     ) == 0
+
+
+async def test_suggest_blocked_by_trial(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "trial_replace_limit", 1)
+    family, meal = await _make_family_and_meal(db_session)
+    await repositories.log_llm_usage(
+        db_session, family_id=family.id, operation="replace", tokens_in=1, tokens_out=1
+    )
+    fake_client = _mock_llm(monkeypatch, _ALTERNATIVES)
+
+    with pytest.raises(TrialLimitExceeded):
+        await suggest_replacements(
+            db_session, meal_id=meal.id, hint=None, profile_md="п", family_id=family.id
+        )
+
+    fake_client.chat.assert_not_called()
 
 
 async def test_replace_meal_swaps_dish(db_session, monkeypatch):

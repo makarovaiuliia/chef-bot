@@ -10,10 +10,11 @@ from bot.filters import HasFamily
 from bot.keyboards import BTN_TODAY, kb_meal_recipes
 from core import emoji, repositories
 from core.db import Family, Meal
-from core.exceptions import LLMError, MealNotFound
+from core.exceptions import LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_meal_lines
 from core.ru_format import format_date_short
 from core.services import recipe_service
+from core.services.limits import denial_text
 
 router = Router()
 router.message.filter(HasFamily())
@@ -79,6 +80,9 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
         recipe = await recipe_service.get_recipe(
             db_session, meal_id=meal.id, profile_md=family.profile_md or "", family_id=family.id
         )
+    except LimitExceeded as e:
+        await placeholder.edit_text(denial_text(e))
+        return
     except LLMError:
         logger.exception("recipe generation failed meal_id={}", meal_id)
         await placeholder.edit_text("Не получилось приготовить рецепт. Нажмите кнопку еще раз.")

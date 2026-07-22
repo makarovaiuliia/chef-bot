@@ -27,7 +27,7 @@ from bot.keyboards import (
 from config import get_settings
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu
-from core.exceptions import LLMError, MealNotFound
+from core.exceptions import LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import menu_planner, shopping_list
@@ -37,6 +37,7 @@ from core.services.dish_replacer import (
     suggest_replacements,
 )
 from core.services.family_service import get_admins
+from core.services.limits import denial_text
 
 router = Router()
 router.message.filter(HasFamily())
@@ -169,6 +170,10 @@ async def _generate_and_show(
         menu = await menu_planner.generate_menu(
             db_session, family=family, start_date=start, days_count=days
         )
+    except LimitExceeded as e:
+        await state.clear()
+        await placeholder.edit_text(denial_text(e))
+        return
     except LLMError:  # LLMInvalidResponse — подкласс; авто-retry уже был внутри
         logger.exception("plan: menu generation failed family_id={}", family.id)
         await state.set_state(PlanFlow.duration)
@@ -282,6 +287,10 @@ async def _suggest_and_show(
             profile_md=family.profile_md or "",
             family_id=family.id,
         )
+    except LimitExceeded as e:
+        await state.clear()
+        await placeholder.edit_text(denial_text(e))
+        return
     except LLMError:
         logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
         await placeholder.edit_text("Не получилось подобрать замену. Выберите блюдо еще раз.")
@@ -434,6 +443,9 @@ async def _build_shopping(message: Message, family: Family,
         items = await shopping_list.build_from_menu(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
         )
+    except LimitExceeded as e:
+        await placeholder.edit_text(f"Меню утверждено. {denial_text(e)}")
+        return
     except LLMError:
         logger.exception("plan: shopping list build failed menu_id={}", menu.id)
         await placeholder.edit_text(

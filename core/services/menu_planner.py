@@ -14,6 +14,7 @@ from core.exceptions import LLMInvalidResponse, MenuTooLong
 from core.llm import LLMClient, build_system_blocks, parse_json_response
 from core.meal_format import slot_label
 from core.models import MealDTO
+from core.services import limits
 
 
 @lru_cache
@@ -95,6 +96,7 @@ async def generate_menu(
     """Черновик меню от LLM. 1 авто-retry на невалидный JSON; usage — при успехе."""
     if not 1 <= days_count <= MENU_MAX_DAYS:
         raise MenuTooLong(f"меню не длиннее {MENU_MAX_DAYS} дней")
+    await limits.ensure_within_limits(session, family_id=family.id, operation="menu_gen")
     slots = family.plan_slots or ["lunch", "dinner"]
     dates = [start_date + timedelta(days=i) for i in range(days_count)]
     llm = llm or get_llm_client()

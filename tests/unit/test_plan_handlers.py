@@ -29,6 +29,25 @@ async def test_generation_failure_shows_retry(monkeypatch):
     assert "Не получилось" in placeholder.edit_text.await_args.args[0]
 
 
+async def test_generation_trial_denial_shows_polite_text(monkeypatch):
+    from core.exceptions import TrialLimitExceeded
+
+    async def blocked(*a, **kw):
+        raise TrialLimitExceeded("menu_gen")
+
+    monkeypatch.setattr(plan_handler.menu_planner, "generate_menu", blocked)
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"start_date": "2026-07-27", "days": 5}
+    member = SimpleNamespace(display_name="Юля", telegram_user_id=1, role="admin")
+
+    await plan_handler._generate_and_show(message, state, _family(), member, db_session=None)
+
+    placeholder = message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "лимит" in text.lower() and "подписка" in text.lower()
+    state.clear.assert_awaited_once()
+
+
 async def test_custom_date_rejects_garbage():
     message, state = AsyncMock(), AsyncMock()
     message.text = "вчера"

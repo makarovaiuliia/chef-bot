@@ -1,7 +1,11 @@
 from datetime import date
 from unittest.mock import AsyncMock
 
+import pytest
+
+from config import get_settings
 from core import repositories
+from core.exceptions import TrialLimitExceeded
 from core.llm import LLMResponse
 from core.repositories import count_llm_operations
 from core.services import recipe_service
@@ -109,3 +113,76 @@ async def test_recipe_generation_logs_usage(db_session, monkeypatch):
         db_session, meal_id=meal_id, profile_md="п", family_id=family.id
     )
     assert await count_llm_operations(db_session, family_id=family.id, operation="recipe") == 1
+
+
+async def test_get_recipe_blocked_by_trial_but_cache_hit_still_served(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "trial_recipe_limit", 1)
+    family, _ = await create_family(
+        db_session,
+        telegram_user_id=333,
+        display_name=None,
+        profile_md="тестовый профиль",
+        timezone="UTC",
+        plan_slots=["lunch", "dinner"],
+    )
+    menu = await repositories.create_draft_menu(
+        db_session,
+        family_id=family.id,
+        start_date=date(2026, 5, 28),
+        days_count=1,
+        meals=[
+            {
+                "date": date(2026, 5, 28),
+                "slot": "lunch",
+                "dish_name": "Паста",
+                "side_dishes": ["сыр"],
+                "protein_kind": "chicken",
+            }
+        ],
+    )
+    meal_id = menu.meals[0].id
+
+    recipe_json = (
+        '{"content_md": "# Паста\\n\\n1. Отварить", '
+        '"ingredients": [{"name": "паста", "quantity": "300", "unit": "г"}], '
+        '"prep_minutes": 15}'
+    )
+    fake_client = AsyncMock()
+    fake_client.chat = AsyncMock(
+        return_value=LLMResponse(text=recipe_json, stop_reason="end_turn")
+    )
+    monkeypatch.setattr(recipe_service, "get_llm_client", lambda: fake_client)
+
+    # генерация ещё в пределах триала
+    cached = await recipe_service.get_recipe(
+        db_session, meal_id=meal_id, profile_md="п", family_id=family.id
+    )
+
+    # лимит исчерпан этой же генерацией; повторный запрос — тот же кэш, без исключения
+    served = await recipe_service.get_recipe(
+        db_session, meal_id=meal_id, profile_md="п", family_id=family.id
+    )
+    assert served.id == cached.id
+
+    # для нового блюда лимит уже блокирует до LLM
+    menu2 = await repositories.create_draft_menu(
+        db_session,
+        family_id=family.id,
+        start_date=date(2026, 5, 29),
+        days_count=1,
+        meals=[
+            {
+                "date": date(2026, 5, 29),
+                "slot": "lunch",
+                "dish_name": "Суп",
+                "side_dishes": [],
+                "protein_kind": "chicken",
+            }
+        ],
+    )
+    fake_client.chat.reset_mock()
+    with pytest.raises(TrialLimitExceeded):
+        await recipe_service.get_recipe(
+            db_session, meal_id=menu2.meals[0].id, profile_md="п", family_id=family.id
+        )
+    fake_client.chat.assert_not_called()

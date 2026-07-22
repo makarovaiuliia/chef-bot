@@ -5,11 +5,17 @@ from unittest.mock import AsyncMock
 import pytest
 
 from bot.handlers.shopping import _notify_added
+from config import get_settings
 from core import repositories
 from core.db import Family
-from core.exceptions import LLMInvalidResponse
+from core.exceptions import LLMInvalidResponse, MonthlyCapExceeded
 from core.llm import LLMResponse
-from core.repositories import count_llm_operations, create_draft_menu, get_open_shopping_items
+from core.repositories import (
+    count_llm_operations,
+    create_draft_menu,
+    get_open_shopping_items,
+    log_llm_usage,
+)
 from core.services import shopping_list
 from core.services.family_service import create_family, join_by_invite
 
@@ -175,6 +181,26 @@ async def test_build_from_menu_closes_stale_keeps_manual(db_session):
     assert len(open_items) == 3  # молоко + 2 из второго билда
     assert {i.name for i in open_items} == {"Молоко", "Морковь", "Гречка"}
     assert all(i.bought is True for i in first_items)
+
+
+async def test_build_from_menu_blocked_by_cap(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "monthly_token_cap_per_family", 10)
+    fam, menu = await _family_with_menu(db_session)
+    await shopping_list.add_manual_item(db_session, family_id=fam.id, name="Молоко")
+    before = await get_open_shopping_items(db_session, family_id=fam.id)
+    await log_llm_usage(
+        db_session, family_id=fam.id, operation="recipe", tokens_in=10, tokens_out=10
+    )
+    llm = FakeLLM([_ITEMS])
+
+    with pytest.raises(MonthlyCapExceeded):
+        await shopping_list.build_from_menu(
+            db_session, family_id=fam.id, menu=menu, profile_md="п", llm=llm
+        )
+
+    assert llm._texts == [_ITEMS]  # LLM не вызван — очередь текстов не тронута
+    after = await get_open_shopping_items(db_session, family_id=fam.id)
+    assert [i.id for i in after] == [i.id for i in before]
 
 
 async def test_build_from_menu_invalid_json_leaves_list_untouched(db_session):
