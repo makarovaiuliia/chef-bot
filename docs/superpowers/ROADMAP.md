@@ -15,6 +15,8 @@ Postgres. Детали — в спеке. План этапа 1:
 [2026-07-20-stage1-multitenant-core.md](plans/2026-07-20-stage1-multitenant-core.md).
 План этапа 2:
 [2026-07-20-stage2-planning.md](plans/2026-07-20-stage2-planning.md).
+План этапа 3:
+[2026-07-21-stage3-personalization.md](plans/2026-07-21-stage3-personalization.md).
 
 ---
 
