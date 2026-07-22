@@ -15,6 +15,8 @@ Postgres. Детали — в спеке. План этапа 1:
 [2026-07-20-stage1-multitenant-core.md](plans/2026-07-20-stage1-multitenant-core.md).
 План этапа 2:
 [2026-07-20-stage2-planning.md](plans/2026-07-20-stage2-planning.md).
+План этапа 3:
+[2026-07-21-stage3-personalization.md](plans/2026-07-21-stage3-personalization.md).
 
 ---
 
@@ -88,6 +90,12 @@ Tool-use агент ([conversation.py](../../core/services/conversation.py)) у�
 написан, в MVP выключен фича-флагом. Включить для верхнего тарифа: разговорное
 планирование, вопросы про блюда, произвольные правки. Основная статья расходов —
 токены, поэтому только платно и с лимитом.
+
+Перед включением conversation_enabled ОБЯЗАТЕЛЬНО: встроить лимиты в
+core/services/conversation.py — сейчас llm.chat агента идет мимо
+ensure_within_limits (месячный потолок не считается), а LimitExceeded из
+tool-вызовов гасится общим except Exception и уходит в LLM текстом вместо
+вежливого отказа юзеру.
 
 ### Группировка покупок по магазинам семьи
 

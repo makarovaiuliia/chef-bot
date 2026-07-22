@@ -14,6 +14,7 @@ from bot.handlers import menu as menu_handler
 from bot.handlers import onboarding as onboarding_handler
 from bot.handlers import plan as plan_handler
 from bot.handlers import profile as profile_handler
+from bot.handlers import settings as settings_handler
 from bot.handlers import shopping as shopping_handler
 from bot.handlers import start as start_handler
 from bot.middlewares import FamilyResolverMiddleware
@@ -31,6 +32,7 @@ def bot_commands(*, planning_enabled: bool) -> list[BotCommand]:
         BotCommand(command="profile", description="Профиль семьи"),
         BotCommand(command="family", description="Управление семьей"),
         BotCommand(command="invite", description="Пригласить в семью"),
+        BotCommand(command="settings", description="Настройки семьи"),
         BotCommand(command="help", description="Справка"),
     ]
     if planning_enabled:
@@ -53,6 +55,7 @@ def create_dispatcher() -> Dispatcher:
     dp.callback_query.outer_middleware(FamilyResolverMiddleware())
 
     dp.include_router(family_handler.router)  # deep-link join + /family, /invite — ПЕРВЫМ
+    dp.include_router(settings_handler.router)
     dp.include_router(start_handler.router)  # /start, /help
     dp.include_router(profile_handler.router)
     dp.include_router(plan_handler.router)

@@ -7,6 +7,7 @@ from core.db import Recipe
 from core.exceptions import LLMInvalidResponse, MealNotFound
 from core.llm import LLMClient, build_system_blocks, parse_json_response
 from core.models import LLMRecipeResponse
+from core.services import limits
 
 
 @lru_cache
@@ -25,6 +26,7 @@ async def get_recipe(
     meal = await repositories.get_meal(session, meal_id)
     if meal is None:
         raise MealNotFound(f"Meal {meal_id} not found")
+    await limits.ensure_within_limits(session, family_id=family_id, operation="recipe")
 
     user_msg = (
         f"Блюдо: {meal.dish_name}. "

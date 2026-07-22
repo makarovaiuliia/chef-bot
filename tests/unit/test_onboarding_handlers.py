@@ -11,7 +11,7 @@ async def test_on_profile_ok_when_already_in_family_clears_state():
     cb = AsyncMock()
     state = AsyncMock()
 
-    await onb.on_profile_ok(cb, state, db_session=None, family=object())
+    await onb.on_profile_ok(cb, state, db_session=AsyncMock(), family=object())
 
     state.clear.assert_awaited_once()
     cb.message.edit_text.assert_awaited_once()

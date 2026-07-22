@@ -2,6 +2,7 @@ from datetime import date
 
 from core.db import (
     Family,
+    FamilyMember,
     LlmUsage,
     MealSlot,
     MemberRole,
@@ -51,3 +52,7 @@ def test_shopping_item_store_is_plain_string():
 def test_llm_usage_model_columns():
     u = LlmUsage(family_id=1, operation="profile", tokens_in=100, tokens_out=200)
     assert u.operation == "profile"
+
+
+def test_family_member_has_no_can_plan():
+    assert not hasattr(FamilyMember(family_id=1, telegram_user_id=1), "can_plan")

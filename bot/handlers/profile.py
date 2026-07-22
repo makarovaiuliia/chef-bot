@@ -59,6 +59,7 @@ async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
     ProfileEdit.waiting_text,
     F.text,
     ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
     IsAdmin(),
 )
 async def on_new_text(message: Message, state: FSMContext, db_session, family) -> None:

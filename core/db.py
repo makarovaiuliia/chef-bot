@@ -18,7 +18,6 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy import false as sa_false
 from sqlalchemy import true as sa_true
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -112,9 +111,6 @@ class FamilyMember(Base):
         default=MemberRole.member,
         server_default="member",
         nullable=False,
-    )
-    can_plan: Mapped[bool] = mapped_column(
-        default=False, server_default=sa_false(), nullable=False
     )
     created_at: Mapped[CreatedAt]
 
@@ -232,7 +228,12 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
-        _engine = create_async_engine(get_settings().db_url, echo=False)
+        url = get_settings().db_url
+        kwargs: dict = {"echo": False}
+        if url.startswith("postgresql"):
+            # LLM-вызовы держат сессию весь хендлер (мидлварь) — запас пула
+            kwargs.update(pool_size=10, max_overflow=20, pool_timeout=30, pool_pre_ping=True)
+        _engine = create_async_engine(url, **kwargs)
     return _engine
 
 

@@ -107,6 +107,24 @@ async def get_admins(session: AsyncSession, *, family_id: int) -> list[FamilyMem
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def update_digest_settings(
+    session: AsyncSession,
+    *,
+    family: Family,
+    enabled: bool | None = None,
+    hour: int | None = None,
+) -> Family:
+    """Настройки утреннего дайджеста (спека §5). Час — локальный для семьи."""
+    if enabled is not None:
+        family.digest_enabled = enabled
+    if hour is not None:
+        if not 5 <= hour <= 12:
+            raise ValueError(f"digest_hour вне диапазона 5..12: {hour}")
+        family.digest_hour = hour
+    await session.flush()
+    return family
+
+
 async def grant_admin(
     session: AsyncSession, *, family_id: int, member_id: int
 ) -> FamilyMember:

@@ -1606,3 +1606,14 @@ git commit -m "docs(roadmap): link stage 3 plan"
 - Локализация (англ/рус) — «Среднесрочное» в роадмапе.
 - Персистентная дедупликация дайджеста (сейчас in-memory: после рестарта в тот же час возможен повтор — принято для MVP).
 - Stale-клавиатура `kb_plan_meals` под сообщением «Подбираю варианты...» (UX-нит из этапа 2 — кнопки безвредны: их закрывает catch-all/state-гейт).
+
+## Отложено финальным ревью этапа 3 (2026-07-22) — бэклог этапа 4
+
+- Гейт planning_enabled на callback'ах plan:remind (и on_build_shoplist): stale-кнопки работают после выключения флага (kill switch неполный).
+- Напоминание «пора планировать» шлется семьям с исчерпанным триалом menu_gen — dead-end UX; pre-check count_llm_operations в _send_plan_reminder.
+- Дубль сообщений админам в час дайджеста при 2 днях до конца меню (warning в дайджесте + отдельное напоминание) + общий helper «дней до конца меню» (digest/reminders).
+- Uniqueness-констрейнт на shopping_lists.menu_id (TOCTOU двух тапов) + happy-path unit on_build_shoplist — следующей миграцией.
+- Handler-тесты LimitExceeded-веток _suggest_and_show/_build_shopping/cb_recipe; рефакторинг дупe except-шейпа.
+- set:* callbacks не-админа падают в никуда (спиннер, forged-only); мусорный суффикс set:digest → "off".
+- Текст «Меню утверждено.» в отказе _build_shopping странен при позднем тапе; DST-тест families_due; sleep-first рестарт-окно планировщика (задокументирован).
+- Конкурентный over-run лимитов (~+1) — принято для MVP, закроет суперадмин-панель.

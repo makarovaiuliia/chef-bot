@@ -158,6 +158,34 @@ def kb_retry(callback: str) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_shoplist_offer(menu_id: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(
+        text=f"{emoji.SHOPPING} Составить список покупок",
+        callback_data=f"plan:shoplist:{menu_id}",
+    )
+    return b.as_markup()
+
+
+def kb_plan_reminder() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.MENU} Спланировать", callback_data="plan:remind")
+    return b.as_markup()
+
+
+def kb_settings(family) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    if family.digest_enabled:
+        b.button(text=f"{emoji.CANCEL} Выключить дайджест", callback_data="set:digest:off")
+    else:
+        b.button(text=f"{emoji.DONE} Включить дайджест", callback_data="set:digest:on")
+    for h in (7, 8, 9, 10):
+        mark = f"{emoji.DONE} " if family.digest_hour == h else ""
+        b.button(text=f"{mark}{h}:00", callback_data=f"set:hour:{h}")
+    b.adjust(1, 4)
+    return b.as_markup()
+
+
 def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
     """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
     b = InlineKeyboardBuilder()

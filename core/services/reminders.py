@@ -1,4 +1,6 @@
 """Open shopping-list line shown in the morning digest."""
+from datetime import date as DateType
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import emoji, repositories
@@ -24,3 +26,13 @@ async def build_shopping_reminder(
     if not items:
         return None
     return f"{emoji.SHOPPING} В списке покупок {_plural_items(len(items))} → /list"
+
+
+async def plan_reminder_due(
+    session: AsyncSession, *, family_id: int, today: DateType
+) -> bool:
+    """True ровно за 2 дня до конца активного меню (спека §5)."""
+    meals = await repositories.get_future_meals(session, family_id, today)
+    if not meals:
+        return False
+    return (max(m.date for m in meals) - today).days == 2

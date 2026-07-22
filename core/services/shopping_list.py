@@ -9,6 +9,7 @@ from core.db import FamilyMember, Menu, ShoppingItem, ShoppingList
 from core.exceptions import LLMInvalidResponse
 from core.llm import LLMClient, build_system_blocks, parse_json_response
 from core.meal_format import format_dish_with_sides, slot_label
+from core.services import limits
 
 
 @lru_cache
@@ -93,6 +94,12 @@ async def close_stale_menu_items(session: AsyncSession, *, family_id: int) -> in
     return len(items)
 
 
+async def has_list_for_menu(session: AsyncSession, *, menu_id: int) -> bool:
+    """Список по этому меню уже собран (идемпотентность кнопки/ретрая)."""
+    stmt = select(ShoppingList.id).where(ShoppingList.menu_id == menu_id).limit(1)
+    return (await session.execute(stmt)).scalar_one_or_none() is not None
+
+
 def _menu_as_text(menu: Menu) -> str:
     lines = []
     for m in sorted(menu.meals, key=lambda m: (m.date, m.slot.value)):
@@ -112,6 +119,7 @@ async def build_from_menu(
     llm: LLMClient | None = None,
 ) -> list[ShoppingItem]:
     """LLM-сборка списка покупок по блюдам меню (operation="shopping")."""
+    await limits.ensure_within_limits(session, family_id=family_id, operation="shopping")
     llm = llm or get_llm_client()
     resp = await llm.chat(
         system_blocks=build_system_blocks("shopping_list_builder", profile_md=profile_md),

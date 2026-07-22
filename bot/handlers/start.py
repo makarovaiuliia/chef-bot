@@ -27,6 +27,7 @@ def help_text() -> str:
         f"{emoji.PROFILE} /profile — профиль семьи",
         f"{emoji.FAMILY} /family — управление семьей",
         f"{emoji.INVITE} /invite — пригласить в семью",
+        f"{emoji.PROFILE} /settings — настройки семьи",
         f"{emoji.HELP} /help — справка",
     ]
     return "\n".join(lines)

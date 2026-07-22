@@ -23,11 +23,12 @@ from bot.keyboards import (
     kb_plan_meals,
     kb_plan_start,
     kb_retry,
+    kb_shoplist_offer,
 )
 from config import get_settings
 from core import emoji, repositories
-from core.db import Family, FamilyMember, Menu
-from core.exceptions import LLMError, MealNotFound
+from core.db import Family, FamilyMember, Menu, MenuStatus
+from core.exceptions import LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import menu_planner, shopping_list
@@ -37,6 +38,7 @@ from core.services.dish_replacer import (
     suggest_replacements,
 )
 from core.services.family_service import get_admins
+from core.services.limits import denial_text
 
 router = Router()
 router.message.filter(HasFamily())
@@ -60,11 +62,22 @@ async def cmd_plan_disabled(message: Message) -> None:
     )
 
 
-@router.message(Command("plan"), IsAdmin())
-async def cmd_plan(message: Message, state: FSMContext, family: Family) -> None:
+async def _start_plan_flow(message: Message, state: FSMContext, db_session: AsyncSession) -> None:
+    """Общий вход в PlanFlow.start_date: чистит сиротский черновик перед стартом."""
+    data = await state.get_data()
+    orphan_id = data.get("menu_id")
+    if orphan_id:
+        await menu_planner.delete_draft(db_session, menu_id=orphan_id)
     await state.clear()
     await state.set_state(PlanFlow.start_date)
     await message.answer("С какого дня планируем меню?", reply_markup=kb_plan_start())
+
+
+@router.message(Command("plan"), IsAdmin())
+async def cmd_plan(
+    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    await _start_plan_flow(message, state, db_session)
 
 
 @router.message(Command("plan"))
@@ -102,6 +115,7 @@ async def on_start_date(cb: CallbackQuery, state: FSMContext, family: Family) ->
     PlanFlow.custom_date,
     F.text,
     ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
 )
 async def on_custom_date(message: Message, state: FSMContext, family: Family) -> None:
     today = menu_planner.family_today(family)
@@ -169,6 +183,10 @@ async def _generate_and_show(
         menu = await menu_planner.generate_menu(
             db_session, family=family, start_date=start, days_count=days
         )
+    except LimitExceeded as e:
+        await state.clear()
+        await placeholder.edit_text(denial_text(e))
+        return
     except LLMError:  # LLMInvalidResponse — подкласс; авто-retry уже был внутри
         logger.exception("plan: menu generation failed family_id={}", family.id)
         await state.set_state(PlanFlow.duration)
@@ -251,6 +269,7 @@ async def on_pick_meal(
     PlanFlow.replace_hint,
     F.text,
     ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
 )
 async def on_replace_hint(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession
@@ -282,6 +301,10 @@ async def _suggest_and_show(
             profile_md=family.profile_md or "",
             family_id=family.id,
         )
+    except LimitExceeded as e:
+        await state.clear()
+        await placeholder.edit_text(denial_text(e))
+        return
     except LLMError:
         logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
         await placeholder.edit_text("Не получилось подобрать замену. Выберите блюдо еще раз.")
@@ -424,7 +447,10 @@ async def _do_approve(message: Message, state: FSMContext, family: Family,
         f"{emoji.DONE} {_actor_name(family_member)} утвердил(а) меню на "
         f"{menu.days_count} дн. с {menu.start_date.strftime('%d.%m.%Y')}",
     )
-    await _build_shopping(message, family, db_session, menu)
+    await message.answer(
+        f"{emoji.SHOPPING} Составить список покупок по меню?",
+        reply_markup=kb_shoplist_offer(menu.id),
+    )
 
 
 async def _build_shopping(message: Message, family: Family,
@@ -434,6 +460,9 @@ async def _build_shopping(message: Message, family: Family,
         items = await shopping_list.build_from_menu(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
         )
+    except LimitExceeded as e:
+        await placeholder.edit_text(f"Меню утверждено. {denial_text(e)}")
+        return
     except LLMError:
         logger.exception("plan: shopping list build failed menu_id={}", menu.id)
         await placeholder.edit_text(
@@ -447,16 +476,29 @@ async def _build_shopping(message: Message, family: Family,
 
 
 @router.callback_query(F.data.startswith("plan:shoplist:"))
-async def on_shoplist_retry(cb: CallbackQuery, family: Family,
+async def on_build_shoplist(cb: CallbackQuery, family: Family,
                             db_session: AsyncSession) -> None:
-    """Ретрай сборки списка после утверждения (вне FSM — state уже очищен)."""
+    """Сборка списка по кнопке после утверждения (и ретрай при ошибке).
+
+    Только активное меню своей семьи.
+    """
     menu_id = int(cb.data.split(":")[-1])
     menu = await repositories.get_menu_with_meals(db_session, menu_id)
-    if menu is None or menu.family_id != family.id:
-        await cb.answer("Меню не найдено", show_alert=True)
+    if menu is None or menu.family_id != family.id or menu.status != MenuStatus.active:
+        await cb.answer("Меню не найдено или не утверждено", show_alert=True)
+        return
+    if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
+        await cb.answer("Список по этому меню уже составлен — смотрите /list", show_alert=True)
         return
     await cb.answer()
     await _build_shopping(cb.message, family, db_session, menu)
+
+
+@router.callback_query(F.data == "plan:remind")
+async def on_plan_reminder(cb: CallbackQuery, state: FSMContext, db_session: AsyncSession) -> None:
+    """Кнопка из напоминания «меню заканчивается» — запускает флоу /plan."""
+    await _start_plan_flow(cb.message, state, db_session)
+    await cb.answer()
 
 
 @router.callback_query(F.data.startswith("plan:"))
