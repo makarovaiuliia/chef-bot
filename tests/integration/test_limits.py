@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+import sqlalchemy as sa
 
 from config import get_settings
 from core.db import Family, LlmUsage
@@ -32,6 +33,16 @@ async def test_sum_tokens_counts_only_current_month(db_session):
     await db_session.flush()
     total = await sum_llm_tokens_current_month(db_session, family_id=fam.id, now=NOW)
     assert total == 150
+
+
+async def test_sum_includes_row_exactly_at_month_start(db_session):
+    fam = await _family(db_session)
+    await db_session.execute(sa.text(
+        "INSERT INTO llm_usage (family_id, operation, tokens_in, tokens_out, created_at) "
+        "VALUES (:f, 'menu_gen', 7, 7, '2026-07-01 00:00:00')"
+    ), {"f": fam.id})
+    total = await sum_llm_tokens_current_month(db_session, family_id=fam.id, now=NOW)
+    assert total == 14
 
 
 async def test_trial_limit_blocks_after_n_operations(db_session, monkeypatch):

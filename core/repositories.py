@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 
 from sqlalchemy import case, func, select
@@ -323,9 +323,14 @@ async def sum_llm_tokens_current_month(
 ) -> int:
     """Сумма токенов семьи с 1-го числа календарного месяца `now` (UTC)."""
     month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+    # SQLite сравнивает datetime текстово: bound-параметр несет .000000, а
+    # CURRENT_TIMESTAMP пишет без микросекунд, поэтому >= на ровной границе
+    # месяца ложно исключает запись. Строгое > с эпсилоном корректно на обоих
+    # диалектах (PG сравнивает инстанты).
+    boundary = month_start - timedelta(microseconds=1)
     stmt = (
         select(func.coalesce(func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out), 0))
-        .where(LlmUsage.family_id == family_id, LlmUsage.created_at >= month_start)
+        .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
 
