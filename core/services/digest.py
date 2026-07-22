@@ -28,9 +28,9 @@ async def _build_end_of_menu_warning(
     last_date = max(m.date for m in future_meals)
     upcoming = (last_date - today).days
     if upcoming == 2:
-        return f"{emoji.WARNING} Меню заканчивается через 2 дня — пора загрузить новое."
+        return f"{emoji.WARNING} Меню заканчивается через 2 дня — пора спланировать новое."
     if upcoming == 1:
-        return f"{emoji.WARNING} Меню заканчивается завтра — пора загрузить новое."
+        return f"{emoji.WARNING} Меню заканчивается завтра — пора спланировать новое."
     return None
 
 

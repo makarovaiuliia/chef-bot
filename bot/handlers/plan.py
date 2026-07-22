@@ -481,6 +481,15 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
     await _build_shopping(cb.message, family, db_session, menu)
 
 
+@router.callback_query(F.data == "plan:remind")
+async def on_plan_reminder(cb: CallbackQuery, state: FSMContext) -> None:
+    """Кнопка из напоминания «меню заканчивается» — запускает флоу /plan."""
+    await state.clear()
+    await state.set_state(PlanFlow.start_date)
+    await cb.message.answer("С какого дня планируем меню?", reply_markup=kb_plan_start())
+    await cb.answer()
+
+
 @router.callback_query(F.data.startswith("plan:"))
 async def on_stale_callback(cb: CallbackQuery) -> None:
     """Catch-all: кнопки старых сообщений (рестарт, state.clear(), выключенный флаг)."""

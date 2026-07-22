@@ -17,9 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from bot.formatting import md_to_telegram_html
+from bot.keyboards import kb_plan_reminder
+from config import get_settings
 from core.db import Family
 from core.repositories import get_family_members
-from core.services import digest
+from core.services import digest, reminders
+from core.services.family_service import get_admins
 
 TICK_SECONDS = 900  # 15 минут
 
@@ -60,12 +63,33 @@ async def _send_family_digest(
             logger.exception("scheduler: send failed user_id={}", member.telegram_user_id)
 
 
+async def _send_plan_reminder(
+    bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
+) -> None:
+    async with sessionmaker() as session:
+        due = await reminders.plan_reminder_due(session, family_id=family.id, today=today)
+        admins = await get_admins(session, family_id=family.id) if due else []
+    for admin in admins:
+        try:
+            await bot.send_message(
+                admin.telegram_user_id,
+                "Меню заканчивается через 2 дня. Спланировать следующее?",
+                reply_markup=kb_plan_reminder(),
+            )
+        except Exception:
+            logger.exception(
+                "scheduler: plan reminder failed admin_id={}", admin.telegram_user_id
+            )
+
+
 async def _process_due_family(
     bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
 ) -> None:
     """Все рассылки семьи в ее digest-час. Точка расширения для напоминаний."""
     if family.digest_enabled:
         await _send_family_digest(bot, sessionmaker, family, today)
+    if get_settings().planning_enabled:
+        await _send_plan_reminder(bot, sessionmaker, family, today)
 
 
 async def _tick_family(

@@ -167,6 +167,12 @@ def kb_shoplist_offer(menu_id: int) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_plan_reminder() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.MENU} Спланировать", callback_data="plan:remind")
+    return b.as_markup()
+
+
 def kb_meal_recipes(meals) -> InlineKeyboardMarkup:
     """Кнопка «Рецепт» на каждое блюдо (/today, /menu)."""
     b = InlineKeyboardBuilder()

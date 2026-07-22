@@ -220,3 +220,12 @@ async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch
     text = placeholder.edit_text.await_args.args[0]
     assert "утверждено" in text and "список покупок" in text
     assert placeholder.edit_text.await_args.kwargs["reply_markup"] is not None
+
+
+async def test_plan_reminder_callback_starts_flow():
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:remind"
+    await plan_handler.on_plan_reminder(cb, state)
+    state.clear.assert_awaited_once()
+    state.set_state.assert_awaited_once_with(plan_handler.PlanFlow.start_date)
+    assert "С какого дня" in cb.message.answer.await_args.args[0]
