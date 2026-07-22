@@ -2,6 +2,7 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
 from bot.keyboards import kb_settings
@@ -32,7 +33,7 @@ async def cmd_settings(message: Message, family: Family, family_member: FamilyMe
 
 
 @router.callback_query(F.data.startswith("set:digest:"))
-async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session) -> None:
+async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
     enabled = cb.data.split(":")[-1] == "on"
     await update_digest_settings(db_session, family=family, enabled=enabled)
     await cb.message.edit_text(_settings_text(family), reply_markup=kb_settings(family))
@@ -40,9 +41,9 @@ async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session) -> Non
 
 
 @router.callback_query(F.data.startswith("set:hour:"))
-async def on_set_hour(cb: CallbackQuery, family: Family, db_session) -> None:
-    hour = int(cb.data.split(":")[-1])
+async def on_set_hour(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
     try:
+        hour = int(cb.data.split(":")[-1])
         await update_digest_settings(db_session, family=family, hour=hour)
     except ValueError:
         await cb.answer("Недоступный час", show_alert=True)
