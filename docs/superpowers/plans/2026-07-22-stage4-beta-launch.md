@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Бот готов к раздаче внешним семьям: оператор видит метрики и семьи через /admin, отказы лимитов собирают заявки «хочу подписку», список покупок доставляется на выбор (в /list или текстом) и чистится одной кнопкой, kill-switch планирования полный, тексты не отсылают внешних юзеров к JSON-файлам.
+**Goal:** Бот готов к раздаче внешним семьям: оператор видит метрики и семьи через /admin и после ручной оплаты активирует семье подписку (/grant), отказы лимитов собирают заявки «хочу подписку», список покупок доставляется на выбор (в /list или текстом) и чистится одной кнопкой, фича-флаг planning_enabled выпилен (планирование доступно всегда), тексты не отсылают внешних юзеров к JSON-файлам.
 
-**Architecture:** Суперадмин — отдельный слой доверия поверх семейной модели (config.superadmin_ids + фильтр IsSuperadmin + изолированный bot/handlers/admin.py; НЕ смешивать с family_members.role — роадмап). Заявки на подписку — таблица subscription_requests (уникальна по family_id, идемпотентная кнопка на каждом отказе лимитов). Сервис shopping_list разделяется на generate_items (LLM, без записи) + save_items (запись) — это дает текстовую доставку без дублирования LLM-логики; build_from_menu сохраняет сигнатуру. Одна миграция 0007 (subscription_requests + uniqueness на shopping_lists.menu_id).
+**Architecture:** Суперадмин — отдельный слой доверия поверх семейной модели (config.superadmin_ids + фильтр IsSuperadmin + изолированный bot/handlers/admin.py; НЕ смешивать с family_members.role — роадмап). Подписка — дата `families.sub_until` (выставляет только суперадмин: /grant после ручной оплаты, /revoke); при активной подписке `ensure_within_limits` НЕ проверяет триал-счетчики, но проверяет подписочный месячный потолок (`sub_monthly_token_cap_per_family` > триального) — лимиты остаются, семья выглядит как оплатившая подписку. Заявки на подписку — таблица subscription_requests (уникальна по family_id, идемпотентная кнопка на каждом отказе лимитов). Сервис shopping_list разделяется на generate_items (LLM, без записи) + save_items (запись) — это дает текстовую доставку без дублирования LLM-логики; build_from_menu сохраняет сигнатуру. Одна миграция 0007 (subscription_requests + families.sub_until + uniqueness на shopping_lists.menu_id).
 
 **Tech Stack:** Python 3.12, aiogram 3, anthropic SDK, SQLAlchemy 2.0 async, Alembic, pytest + pytest-asyncio.
 
@@ -16,50 +16,64 @@
 - Все видимые юзеру тексты — на русском; эмодзи только из `core/emoji.py`; **«ё» запрещена** во всех `.py`/`.md` в `bot/` и `core/` (гард `tests/unit/test_no_yo.py`).
 - **Суперадмин — отдельный слой доверия** (роадмап): `superadmin_ids` в конфиге, вне семейной модели; НЕ смешивать с `family_members.role`; `/admin` НЕ анонсируется в `bot_commands()` и `help_text()` (скрытая команда).
 - Заявка «хочу подписку» — одна на семью (unique по family_id), кнопка идемпотентна; кнопка появляется на КАЖДОМ отказе лимитов (триал и потолок).
-- Kill-switch: при `planning_enabled=False` ВСЕ plan-callbacks (включая `plan:shoplist:*`, `plan:shoptext:*`, `plan:remind`) отвечают заглушкой, а не работают.
+- Фича-флаг `planning_enabled` выпиливается ЦЕЛИКОМ (решение пользователя 2026-07-22): планирование доступно всегда, `/plan` всегда в bot_commands и help, никаких заглушек и гейтов на plan-callbacks.
+- Подписка = `families.sub_until: date | None` (активна, пока `sub_until >= today` по UTC). Активная подписка снимает триал-счетчики, но НЕ потолок: действует свой `sub_monthly_token_cap_per_family` (лимиты остаются — «как будто оплачена подписка»). Истекла — семья возвращается к триальному поведению. Меняет только суперадмин (`/grant <family_id> [дней=30]`, `/revoke <family_id>` — скрытые команды, как /admin); повторный /grant продлевает от текущей даты окончания.
 - Оценка $ в /admin — ориентир по константам (Sonnet: 3 $/Mtok in, 15 $/Mtok out), не биллинг.
 - Схема: единственная миграция этапа — 0007 (`down_revision = "0006_drop_can_plan"`).
 - catch-all `plan:*` остается ПОСЛЕДНИМ хендлером в bot/handlers/plan.py; новые plan-callbacks регистрируются до него.
-- В `bot/handlers/settings.py` роутерный фильтр callback'ов сейчас `HasFamily(), IsAdmin()` — Task 7 перенесет IsAdmin на уровень хендлеров (чтобы не-админ получал alert, а не спиннер).
+- В `bot/handlers/settings.py` роутерный фильтр callback'ов сейчас `HasFamily(), IsAdmin()` — Task 8 перенесет IsAdmin на уровень хендлеров (чтобы не-админ получал alert, а не спиннер).
 
 ---
 
 ## File Structure (итог этапа)
 
 ```
-config.py                        + superadmin_ids (comma-string env SUPERADMIN_IDS)
+config.py                        + superadmin_ids (comma-string env SUPERADMIN_IDS),
+                                   sub_monthly_token_cap_per_family; − planning_enabled
 core/constants.py                + PRICE_USD_PER_MTOK_IN=3.0, PRICE_USD_PER_MTOK_OUT=15.0
-core/db.py                       + SubscriptionRequest; ShoppingList.menu_id unique в модели
+core/db.py                       + SubscriptionRequest; Family.sub_until; ShoppingList.menu_id unique
+core/exceptions.py               MonthlyCapExceeded(subscribed: bool = False)
 core/repositories.py             + add_subscription_request, count_subscription_requests,
-                                   admin_month_summary, families_overview, items_for_menu
+                                   admin_month_summary, families_overview, items_for_menu,
+                                   extend_family_subscription, revoke_family_subscription
+core/services/limits.py          + subscription_active; ensure_within_limits: при активной
+                                   подписке без триала, потолок подписочный; denial_text для
+                                   подписчика без питча «подписка готовится»
 core/services/reminders.py       + days_until_menu_end (общий helper), plan_reminder_due через него
-core/services/digest.py          warning через helper; при planning_enabled не дублирует «2 дня»
+core/services/digest.py          warning через helper; строка «2 дня» удалена (ее покрывает
+                                   напоминание с кнопкой)
 core/services/shopping_list.py   generate_items/save_items split; clear_all_open; format_items_text
-bot/scheduler.py                 _send_plan_reminder: пропуск семей с исчерпанным menu_gen-триалом
+bot/scheduler.py                 напоминание без флага; пропуск семей с исчерпанным
+                                   menu_gen-триалом (кроме активной подписки)
 bot/filters.py                   + IsSuperadmin
 bot/keyboards.py                 kb_shoplist_offer — 2 кнопки; + kb_want_subscription,
                                    kb_shop_clear_confirm; kb_shopping_list + кнопка очистки
-bot/handlers/plan.py             kill-switch на callbacks; plan:shoptext; kb подписки на отказах
+bot/handlers/plan.py             − _planning_enabled/cmd_plan_disabled; plan:shoptext;
+                                   kb «хочу подписку» на отказах (если подписки нет)
+bot/handlers/start.py            /plan в help_text безусловно
 bot/handlers/menu.py             empty-тексты без «пришли JSON»; kb подписки на отказе рецепта
 bot/handlers/shopping.py         очистка списка с подтверждением
 bot/handlers/settings.py         IsAdmin на хендлерах + catch-all set:* для не-админов
 bot/handlers/subscription.py     NEW: callback sub:want
-bot/handlers/admin.py            NEW: /admin (сводка + семьи + заявки)
-bot/main.py                      + admin router (ПЕРВЫМ), subscription router
+bot/handlers/admin.py            NEW: /admin (сводка + семьи + заявки) + /grant + /revoke
+bot/main.py                      + admin router (ПЕРВЫМ), subscription router; bot_commands без флага
+.env.example                     + SUPERADMIN_IDS, SUB_MONTHLY_TOKEN_CAP_PER_FAMILY; − PLANNING_ENABLED
 alembic/versions/0007_subscriptions_uq_shoplist.py NEW
 tests/...
 ```
 
 ---
 
-### Task 1: Kill-switch, dead-end напоминания, дубль дайджеста
+### Task 1: Выпилить planning_enabled, dead-end напоминания, дубль дайджеста
+
+Флаг `planning_enabled` удаляется целиком (решение пользователя 2026-07-22): планирование — базовая функция, доступна всегда.
 
 **Files:**
-- Modify: `bot/handlers/plan.py` (`on_build_shoplist`, `on_plan_reminder`), `bot/scheduler.py` (`_send_plan_reminder`), `core/services/reminders.py`, `core/services/digest.py:22-34`
-- Test: `tests/unit/test_plan_handlers.py`, `tests/unit/test_scheduler.py`, `tests/integration/test_reminders.py`, `tests/integration/test_digest.py`
+- Modify: `config.py` (− `planning_enabled`), `.env.example` (− `PLANNING_ENABLED`), `bot/main.py` (`bot_commands` без параметра), `bot/handlers/start.py` (`help_text`), `bot/handlers/plan.py` (− `_planning_enabled`, `_planning_disabled_filter`, `cmd_plan_disabled`), `bot/scheduler.py` (`_process_due_family`, `_send_plan_reminder`), `core/services/reminders.py`, `core/services/digest.py:22-34`
+- Test: `tests/unit/test_main_commands.py`, `tests/unit/test_plan_handlers.py`, `tests/unit/test_scheduler.py`, `tests/integration/test_reminders.py`, `tests/integration/test_digest.py`
 
 **Interfaces:**
-- Produces: `reminders.days_until_menu_end(session, *, family_id: int, today: date) -> int | None` (None — нет активного меню; иначе `(last_date - today).days`); `plan_reminder_due` реализован через него; `digest._build_end_of_menu_warning` через него же и НЕ добавляет строку при `days == 2 and get_settings().planning_enabled` (напоминание с кнопкой берет этот случай на себя); scheduler не шлет напоминание семьям с исчерпанным триалом menu_gen; plan-callbacks гейтятся `_planning_enabled()`.
+- Produces: `reminders.days_until_menu_end(session, *, family_id: int, today: date) -> int | None` (None — нет активного меню; иначе `(last_date - today).days`); `plan_reminder_due` реализован через него; `digest._build_end_of_menu_warning` через него же и БОЛЬШЕ НЕ добавляет строку «2 дня» (этот случай всегда покрывает напоминание с кнопкой; строка «завтра» остается); scheduler шлет напоминание безусловно по расписанию, но не семьям с исчерпанным триалом menu_gen; `bot_commands() -> list[BotCommand]` без параметра, `/plan` всегда в списке; `Settings.planning_enabled` не существует (grep по репо пуст).
 
 - [ ] **Step 1: Падающие тесты**
 
@@ -87,33 +101,34 @@ async def test_days_until_menu_end(db_session):
     assert await days_until_menu_end(db_session, family_id=fam.id, today=today) == 2
 ```
 
-В `tests/integration/test_digest.py` (по паттерну файла; monkeypatch settings-атрибута как в test_limits):
+В `tests/integration/test_digest.py` (по паттерну файла; существующий тест на «2 дня» — удалить или переписать в негативный):
 
 ```python
-async def test_digest_skips_two_day_warning_when_planning_enabled(db_session, monkeypatch):
-    # при включенном планировании «2 дня» покрывает напоминание с кнопкой — в дайджесте молчим
-    monkeypatch.setattr(get_settings(), "planning_enabled", True)
+async def test_digest_has_no_two_day_warning(db_session):
+    # «2 дня» всегда покрывает напоминание с кнопкой — в дайджесте молчим
     # ...семья + активное меню, last_date = today + 2 (как в существующих warning-тестах файла)
     text = await digest.build_morning_digest(db_session, family_id=fam.id, today=today)
     assert "заканчивается" not in text
-
-
-async def test_digest_keeps_two_day_warning_when_planning_disabled(db_session, monkeypatch):
-    monkeypatch.setattr(get_settings(), "planning_enabled", False)
-    # ...та же фикстура
-    text = await digest.build_morning_digest(db_session, family_id=fam.id, today=today)
-    assert "заканчивается через 2 дня" in text
 ```
 
 (строку «завтра» (days==1) не трогаем — тест на нее в файле должен остаться зеленым.)
 
-В `tests/unit/test_scheduler.py`:
+В `tests/unit/test_main_commands.py` — тесты с `planning_enabled=True/False` заменить одним:
+
+```python
+def test_bot_commands_always_include_plan():
+    cmds = [c.command for c in bot_commands()]
+    assert "plan" in cmds
+```
+
+(тест help_text с monkeypatch флага — упростить: /plan присутствует безусловно.)
+
+В `tests/unit/test_scheduler.py` — из существующих тестов убрать monkeypatch `planning_enabled` (тест «reminder не шлется при выключенном флаге» удалить), добавить:
 
 ```python
 async def test_reminder_skipped_when_trial_exhausted(monkeypatch):
     from bot import scheduler
 
-    monkeypatch.setattr(get_settings(), "planning_enabled", True)
     monkeypatch.setattr(get_settings(), "trial_menu_gen_limit", 1)
 
     async def fake_due(session, *, family_id, today):
@@ -145,27 +160,13 @@ def _fake_sessionmaker():
     return _session
 ```
 
-В `tests/unit/test_plan_handlers.py`:
+В `tests/unit/test_plan_handlers.py` — тесты с monkeypatch `_planning_enabled` (заглушки при выключенном флаге) удалить; добавить happy-path:
 
 ```python
-async def test_plan_callbacks_stub_when_flag_off(monkeypatch):
-    monkeypatch.setattr(plan_handler, "_planning_enabled", lambda: False)
-    cb = AsyncMock()
-    cb.data = "plan:remind"
-    await plan_handler.on_plan_reminder(cb, AsyncMock(), db_session=None)
-    assert cb.answer.await_args.kwargs.get("show_alert") is True
-
-    cb2 = AsyncMock()
-    cb2.data = "plan:shoplist:7"
-    await plan_handler.on_build_shoplist(cb2, _family(), db_session=None)
-    assert cb2.answer.await_args.kwargs.get("show_alert") is True
-
-
 async def test_build_shoplist_happy_path_builds(monkeypatch):
     """Бэклог этапа 3: happy-path — активное свое меню без списка запускает сборку."""
     from core.db import MenuStatus
 
-    monkeypatch.setattr(plan_handler, "_planning_enabled", lambda: True)
     menu = SimpleNamespace(id=7, family_id=1, status=MenuStatus.active, meals=[])
 
     async def fake_get(*a, **kw):
@@ -214,10 +215,9 @@ async def plan_reminder_due(
     return await days_until_menu_end(session, family_id=family_id, today=today) == 2
 ```
 
-`core/services/digest.py::_build_end_of_menu_warning` — переписать через helper:
+`core/services/digest.py::_build_end_of_menu_warning` — переписать через helper (строка «2 дня» уходит навсегда — ее покрывает напоминание с кнопкой):
 
 ```python
-from config import get_settings
 from core.services import reminders
 
 
@@ -225,14 +225,19 @@ async def _build_end_of_menu_warning(
     session: AsyncSession, family_id: int, today: DateType
 ) -> str | None:
     upcoming = await reminders.days_until_menu_end(session, family_id=family_id, today=today)
-    if upcoming == 2 and not get_settings().planning_enabled:
-        return f"{emoji.WARNING} Меню заканчивается через 2 дня — пора спланировать новое."
     if upcoming == 1:
         return f"{emoji.WARNING} Меню заканчивается завтра — пора спланировать новое."
     return None
 ```
 
-`bot/scheduler.py::_send_plan_reminder` — пропуск исчерпанного триала (импорт `from core.repositories import count_llm_operations, get_family_members`):
+Выпиливание флага:
+- `config.py`: удалить поле `planning_enabled`; `.env.example`: удалить `PLANNING_ENABLED`.
+- `bot/main.py`: `bot_commands()` без параметра, `/plan` всегда в списке; call site `set_my_commands(bot_commands())`.
+- `bot/handlers/start.py::help_text`: строка `/plan` безусловно.
+- `bot/handlers/plan.py`: удалить `_planning_enabled`, `_planning_disabled_filter`, хендлер `cmd_plan_disabled`; никаких гейтов на callbacks не добавлять.
+- `bot/scheduler.py::_process_due_family`: убрать `if get_settings().planning_enabled:` — `_send_plan_reminder` вызывается всегда.
+
+`bot/scheduler.py::_send_plan_reminder` — пропуск исчерпанного триала (импорт `from core.repositories import count_llm_operations`):
 
 ```python
     async with sessionmaker() as session:
@@ -246,26 +251,20 @@ async def _build_end_of_menu_warning(
         admins = await get_admins(session, family_id=family.id) if due else []
 ```
 
-`bot/handlers/plan.py` — в начало `on_build_shoplist` и `on_plan_reminder`:
-
-```python
-    if not _planning_enabled():
-        await cb.answer("Планирование сейчас выключено", show_alert=True)
-        return
-```
+(Task 5 сделает исключение для семей с активной подпиской — здесь пока просто пропуск.)
 
 - [ ] **Step 3: Прогон + Commit**
 
-Run: `.venv/bin/ruff check . && .venv/bin/pytest -q` → PASS
+Run: `.venv/bin/ruff check . && .venv/bin/pytest -q && ! grep -rn "planning_enabled" bot/ core/ config.py tests/` → PASS, grep пуст
 
 ```bash
-git add bot/ core/services/ tests/
-git commit -m "fix(plan): full planning kill-switch, no dead-end reminders, no digest duplication"
+git add bot/ core/services/ config.py .env.example tests/
+git commit -m "refactor(plan): drop planning_enabled flag, no dead-end reminders, no digest duplication"
 ```
 
 ---
 
-### Task 2: Миграция 0007 — subscription_requests + uniqueness списка
+### Task 2: Миграция 0007 — subscription_requests, families.sub_until, uniqueness списка
 
 **Files:**
 - Modify: `core/db.py`
@@ -273,7 +272,7 @@ git commit -m "fix(plan): full planning kill-switch, no dead-end reminders, no d
 - Test: `tests/unit/test_models.py`
 
 **Interfaces:**
-- Produces: модель `SubscriptionRequest(id, family_id FK unique, telegram_user_id BigInteger, created_at)`; `ShoppingList.menu_id` уникален (закрывает TOCTOU двойного тапа из бэклога).
+- Produces: модель `SubscriptionRequest(id, family_id FK unique, telegram_user_id BigInteger, created_at)`; `Family.sub_until: date | None` (nullable, default None) — подписка активна по эту дату включительно, выставляет суперадмин (Task 5); `ShoppingList.menu_id` уникален (закрывает TOCTOU двойного тапа из бэклога).
 
 - [ ] **Step 1: Падающий тест**
 
@@ -287,6 +286,13 @@ def test_subscription_request_model():
     assert r.family_id == 1
 
 
+def test_family_sub_until_nullable():
+    from core.db import Family
+
+    c = Family.__table__.c.sub_until
+    assert c.nullable and c.default is None
+
+
 def test_shopping_list_menu_id_unique():
     from core.db import ShoppingList
 
@@ -296,6 +302,14 @@ def test_shopping_list_menu_id_unique():
 Run: → FAIL (ImportError / unique is None).
 
 - [ ] **Step 2: Модели в `core/db.py`**
+
+`Family` — после `digest_enabled` (импорт `Date` из sqlalchemy, если его нет; тип даты — как у `Meal.date`):
+
+```python
+    # подписка активна по эту дату включительно; выставляет суперадмин /grant
+    # после ручной оплаты (None — подписки нет, работают триал-лимиты)
+    sub_until: Mapped[DateType | None] = mapped_column(Date)
+```
 
 `ShoppingList.menu_id` — добавить `unique=True`:
 
@@ -322,7 +336,7 @@ class SubscriptionRequest(Base):
 - [ ] **Step 3: Миграция `alembic/versions/0007_subscriptions_uq_shoplist.py`**
 
 ```python
-"""subscription requests table + unique shopping list per menu
+"""subscription requests, family sub_until, unique shopping list per menu
 
 Revision ID: 0007_subscriptions_uq_shoplist
 Revises: 0006_drop_can_plan
@@ -354,6 +368,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
+    op.add_column("families", sa.Column("sub_until", sa.Date(), nullable=True))
     with op.batch_alter_table("shopping_lists") as b:
         b.create_unique_constraint("uq_shopping_lists_menu_id", ["menu_id"])
 
@@ -361,6 +376,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     with op.batch_alter_table("shopping_lists") as b:
         b.drop_constraint("uq_shopping_lists_menu_id", type_="unique")
+    op.drop_column("families", "sub_until")
     op.drop_table("subscription_requests")
 ```
 
@@ -371,7 +387,7 @@ Expected: alembic до 0007 (туда-обратно-туда), тесты PASS.
 
 ```bash
 git add core/db.py alembic/versions/0007_subscriptions_uq_shoplist.py tests/unit/test_models.py
-git commit -m "feat(db): subscription_requests table, unique shopping list per menu"
+git commit -m "feat(db): subscription_requests table, family sub_until, unique shopping list per menu"
 ```
 
 ---
@@ -901,7 +917,320 @@ git commit -m "feat(admin): /admin superadmin summary — families, ops, tokens,
 
 ---
 
-### Task 5: Список покупок текстом (вторая кнопка доставки)
+### Task 5: Подписка семьи — /grant и /revoke после ручной оплаты
+
+Модель (решение пользователя 2026-07-22): деньги для беты принимаются вручную, после оплаты суперадмин активирует семье подписку. Лимиты у подписчика ОСТАЮТСЯ — просто подписочные: триал-счетчики не действуют, месячный токен-потолок свой (выше триального). Все выглядит так, будто подписка в продукте уже есть.
+
+**Files:**
+- Modify: `config.py`, `.env.example`, `core/exceptions.py`, `core/services/limits.py`, `core/repositories.py`, `bot/handlers/admin.py` (Task 4), `bot/handlers/plan.py` + `bot/handlers/menu.py` (denial-места из Task 3), `bot/scheduler.py` (`_send_plan_reminder`)
+- Test: `tests/integration/test_limits.py`, `tests/unit/test_limits_texts.py` (или где живут тесты denial_text), `tests/unit/test_admin_handlers.py`, `tests/unit/test_scheduler.py`, `tests/integration/test_admin_metrics.py`
+
+**Interfaces:**
+- Consumes: `Family.sub_until` (Task 2), `IsSuperadmin` + admin router (Task 4), denial-места с kb подписки (Task 3).
+- Produces:
+  - `Settings.sub_monthly_token_cap_per_family: int = 2_000_000` (env `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY`) — потолок подписчика.
+  - `limits.subscription_active(family: Family, today: date | None = None) -> bool` — `sub_until >= today` (UTC-дата).
+  - `limits.ensure_within_limits` — грузит семью (`session.get(Family, family_id)`); при активной подписке триал-счетчики НЕ проверяются, потолок — подписочный, при превышении `MonthlyCapExceeded(subscribed=True)`; без подписки — прежнее поведение.
+  - `MonthlyCapExceeded(subscribed: bool = False)` (существующие `raise MonthlyCapExceeded` продолжают работать); `denial_text` для subscribed-потолка — текст БЕЗ питча «подписка готовится»: «Месячный лимит подписки исчерпан — обновится 1-го числа следующего месяца.»
+  - `repositories.extend_family_subscription(session, *, family_id: int, days: int, today: date) -> date | None` — продление от `max(today, текущее окончание)`, возвращает новую дату; None — семьи нет.
+  - `repositories.revoke_family_subscription(session, *, family_id: int) -> bool` — сбрасывает sub_until в None; False — семьи нет.
+  - `families_overview` (Task 4) — в каждую строку добавить ключ `sub_until: date | None`; в /admin у семьи с подпиской пометка «подписка до DD.MM.YYYY».
+  - `/grant <family_id> [дней=30]` и `/revoke <family_id>` в `bot/handlers/admin.py` (роутер уже фильтрует IsSuperadmin; команды скрытые, в bot_commands/help НЕ добавлять): кривые аргументы → «Использование: /grant <family_id> [дней=30]»; семьи нет → «Семья не найдена»; успех → подтверждение суперадмину с датой окончания; при grant всем админам семьи уходит «Подписка активна до DD.MM.YYYY — лимиты триала сняты. Спасибо!» (по образцу нотификаций из subscription.py: try/except + logger.warning на каждую отправку).
+  - Все 4 denial-места из Task 3: `reply_markup` только если подписки нет — `None if limits.subscription_active(family) else kb_want_subscription()` (подписчик может упереться лишь в потолок, звать его «хотеть подписку» нелепо).
+  - `bot/scheduler.py::_send_plan_reminder` — семья с активной подпиской НЕ пропускается при исчерпанном триале (проверку used >= limit делать только при `not limits.subscription_active(family, today)`).
+
+- [ ] **Step 1: Падающие тесты**
+
+В `tests/integration/test_limits.py` (по паттерну существующих тестов файла; `NOW = datetime(2026, 7, 22, 12, 0, tzinfo=UTC)`):
+
+```python
+async def test_subscription_skips_trial_but_keeps_cap(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "trial_menu_gen_limit", 0)
+    fam = Family(name="f", sub_until=date(2026, 8, 21))
+    db_session.add(fam)
+    await db_session.flush()
+    # триал нулевой, но подписка активна — операция проходит
+    await ensure_within_limits(db_session, family_id=fam.id, operation="menu_gen", now=NOW)
+    # подписочный потолок при этом работает
+    monkeypatch.setattr(get_settings(), "sub_monthly_token_cap_per_family", 0)
+    with pytest.raises(MonthlyCapExceeded) as e:
+        await ensure_within_limits(db_session, family_id=fam.id, operation="menu_gen", now=NOW)
+    assert e.value.subscribed is True
+
+
+async def test_expired_subscription_back_to_trial(db_session, monkeypatch):
+    monkeypatch.setattr(get_settings(), "trial_menu_gen_limit", 0)
+    fam = Family(name="f", sub_until=date(2026, 7, 21))  # истекла вчера
+    db_session.add(fam)
+    await db_session.flush()
+    with pytest.raises(TrialLimitExceeded):
+        await ensure_within_limits(db_session, family_id=fam.id, operation="menu_gen", now=NOW)
+
+
+async def test_extend_and_revoke_subscription(db_session):
+    from core.repositories import extend_family_subscription, revoke_family_subscription
+
+    fam = Family(name="f")
+    db_session.add(fam)
+    await db_session.flush()
+    today = date(2026, 7, 22)
+    assert await extend_family_subscription(
+        db_session, family_id=fam.id, days=30, today=today
+    ) == date(2026, 8, 21)
+    # повторный grant продлевает от текущего окончания, а не от today
+    assert await extend_family_subscription(
+        db_session, family_id=fam.id, days=30, today=today
+    ) == date(2026, 9, 20)
+    assert await revoke_family_subscription(db_session, family_id=fam.id) is True
+    await db_session.refresh(fam)
+    assert fam.sub_until is None
+    assert await extend_family_subscription(
+        db_session, family_id=999_999, days=30, today=today
+    ) is None
+```
+
+Туда же (или где живут тесты `denial_text`):
+
+```python
+def test_denial_text_for_subscribed_cap():
+    text = denial_text(MonthlyCapExceeded(subscribed=True))
+    assert "1-го числа" in text and "готовится" not in text
+```
+
+В `tests/unit/test_admin_handlers.py`:
+
+```python
+async def test_cmd_grant_activates_and_notifies_admins(monkeypatch):
+    calls = {}
+
+    async def fake_extend(session, *, family_id, days, today):
+        calls["args"] = (family_id, days)
+        return date(2026, 8, 21)
+
+    async def fake_admins(session, *, family_id):
+        return [SimpleNamespace(telegram_user_id=111)]
+
+    monkeypatch.setattr(
+        admin_handler.repositories, "extend_family_subscription", fake_extend
+    )
+    monkeypatch.setattr(admin_handler, "get_admins", fake_admins)
+    message = AsyncMock()
+    message.text = "/grant 7"
+
+    await admin_handler.cmd_grant(message, db_session=None)
+
+    assert calls["args"] == (7, 30)
+    message.bot.send_message.assert_awaited()  # уведомление админам семьи
+    assert "21.08.2026" in message.answer.await_args.args[0]
+
+
+async def test_cmd_grant_custom_days(monkeypatch):
+    # message.text = "/grant 7 90" → extend вызывается с days=90
+    ...
+
+
+async def test_cmd_grant_bad_arg_shows_usage():
+    message = AsyncMock()
+    message.text = "/grant abc"
+    await admin_handler.cmd_grant(message, db_session=None)
+    assert "/grant" in message.answer.await_args.args[0]
+
+
+async def test_cmd_revoke_resets_subscription(monkeypatch):
+    calls = {}
+
+    async def fake_revoke(session, *, family_id):
+        calls["family_id"] = family_id
+        return True
+
+    monkeypatch.setattr(
+        admin_handler.repositories, "revoke_family_subscription", fake_revoke
+    )
+    message = AsyncMock()
+    message.text = "/revoke 7"
+
+    await admin_handler.cmd_revoke(message, db_session=None)
+
+    assert calls["family_id"] == 7
+```
+
+В `tests/unit/test_scheduler.py`:
+
+```python
+async def test_reminder_sent_when_subscribed_despite_exhausted_trial(monkeypatch):
+    # как test_reminder_skipped_when_trial_exhausted, но у семьи
+    # sub_until = today + 10 (активная подписка) и замоканный get_admins -> [admin];
+    # ассерт: bot.send_message.assert_awaited()
+```
+
+В `tests/integration/test_admin_metrics.py` — в `test_families_overview` ассерт `rows[0]["sub_until"] is None` (и вторая семья с `sub_until=date(...)` → дата на месте).
+
+Run: → FAIL.
+
+- [ ] **Step 2: Реализация**
+
+`config.py` — после `monthly_token_cap_per_family`:
+
+```python
+    # месячный потолок токенов семьи с активной подпиской (выдана /grant)
+    sub_monthly_token_cap_per_family: int = 2_000_000
+```
+
+`.env.example`: `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY=` с комментарием «потолок токенов подписчика».
+
+`core/exceptions.py`:
+
+```python
+class MonthlyCapExceeded(LimitExceeded):
+    def __init__(self, subscribed: bool = False) -> None:
+        self.subscribed = subscribed
+        super().__init__()
+```
+
+`core/services/limits.py` (импорты `from datetime import UTC, date, datetime`, `from core.db import Family`):
+
+```python
+def subscription_active(family: Family, today: date | None = None) -> bool:
+    """Подписка семьи активна по sub_until включительно (UTC-дата)."""
+    today = today or datetime.now(UTC).date()
+    return family.sub_until is not None and family.sub_until >= today
+
+
+async def ensure_within_limits(
+    session: AsyncSession, *, family_id: int, operation: str, now: datetime | None = None
+) -> None:
+    now = now or datetime.now(UTC)
+    family = await session.get(Family, family_id)
+    subscribed = family is not None and subscription_active(family, now.date())
+    if not subscribed:
+        limit = _trial_limits().get(operation)
+        if limit is not None:
+            used = await repositories.count_llm_operations(
+                session, family_id=family_id, operation=operation
+            )
+            if used >= limit:
+                raise TrialLimitExceeded(operation)
+    cap = (
+        get_settings().sub_monthly_token_cap_per_family
+        if subscribed
+        else get_settings().monthly_token_cap_per_family
+    )
+    tokens = await repositories.sum_llm_tokens_current_month(
+        session, family_id=family_id, now=now
+    )
+    if tokens >= cap:
+        raise MonthlyCapExceeded(subscribed=subscribed)
+```
+
+`denial_text` — ветка для подписчика:
+
+```python
+    if isinstance(exc, MonthlyCapExceeded):
+        if exc.subscribed:
+            return (
+                "Месячный лимит подписки исчерпан — обновится 1-го числа "
+                "следующего месяца."
+            )
+        return (существующий текст без изменений)
+```
+
+`core/repositories.py`:
+
+```python
+async def extend_family_subscription(
+    session: AsyncSession, *, family_id: int, days: int, today: DateType
+) -> DateType | None:
+    """Продлить подписку на days от max(today, текущее окончание). None — семьи нет."""
+    family = await session.get(Family, family_id)
+    if family is None:
+        return None
+    base = family.sub_until if family.sub_until and family.sub_until > today else today
+    family.sub_until = base + timedelta(days=days)
+    await session.flush()
+    return family.sub_until
+
+
+async def revoke_family_subscription(session: AsyncSession, *, family_id: int) -> bool:
+    family = await session.get(Family, family_id)
+    if family is None:
+        return False
+    family.sub_until = None
+    await session.flush()
+    return True
+```
+
+`families_overview` — добавить `Family.sub_until` в select и ключ `"sub_until"` в dict.
+
+`bot/handlers/admin.py` — команды (импорт `from core.services.family_service import get_admins`, `from loguru import logger`):
+
+```python
+def _parse_grant_args(message: Message) -> tuple[int, int] | None:
+    """(family_id, days) из «/grant <family_id> [дней]»; None — кривые аргументы."""
+    parts = (message.text or "").split()
+    if len(parts) not in (2, 3) or not parts[1].isdigit():
+        return None
+    if len(parts) == 3 and not parts[2].isdigit():
+        return None
+    return int(parts[1]), (int(parts[2]) if len(parts) == 3 else 30)
+
+
+@router.message(Command("grant"))
+async def cmd_grant(message: Message, db_session: AsyncSession) -> None:
+    args = _parse_grant_args(message)
+    if args is None:
+        await message.answer("Использование: /grant <family_id> [дней=30]")
+        return
+    family_id, days = args
+    sub_until = await repositories.extend_family_subscription(
+        db_session, family_id=family_id, days=days, today=datetime.now(UTC).date()
+    )
+    if sub_until is None:
+        await message.answer(f"Семья {family_id} не найдена")
+        return
+    until = sub_until.strftime("%d.%m.%Y")
+    for admin in await get_admins(db_session, family_id=family_id):
+        try:
+            await message.bot.send_message(
+                admin.telegram_user_id,
+                f"Подписка активна до {until} — лимиты триала сняты. Спасибо!",
+            )
+        except Exception:
+            logger.warning("admin: grant notify failed id={}", admin.telegram_user_id)
+    await message.answer(f"Семья {family_id}: подписка до {until}")
+
+
+@router.message(Command("revoke"))
+async def cmd_revoke(message: Message, db_session: AsyncSession) -> None:
+    parts = (message.text or "").split()
+    if len(parts) != 2 or not parts[1].isdigit():
+        await message.answer("Использование: /revoke <family_id>")
+        return
+    family_id = int(parts[1])
+    ok = await repositories.revoke_family_subscription(db_session, family_id=family_id)
+    await message.answer(
+        f"Семья {family_id}: подписка отключена" if ok
+        else f"Семья {family_id} не найдена"
+    )
+```
+
+В `cmd_admin` — к строке семьи дописывать `f" · подписка до {f['sub_until']:%d.%m.%Y}"` при непустом `sub_until`.
+
+Denial-места из Task 3 (все 4, в plan.py и menu.py; импорт `from core.services import limits`): `reply_markup=None if limits.subscription_active(family) else kb_want_subscription()`.
+
+`bot/scheduler.py::_send_plan_reminder` — проверку триала выполнять только при `not limits.subscription_active(family, today)`.
+
+- [ ] **Step 3: Прогон + Commit**
+
+Run: `.venv/bin/ruff check . && .venv/bin/pytest -q` → PASS
+
+```bash
+git add config.py .env.example core/ bot/ tests/
+git commit -m "feat(admin): manual subscription via /grant and /revoke, subscriber-tier limits"
+```
+
+---
+
+### Task 6: Список покупок текстом (вторая кнопка доставки)
 
 **Files:**
 - Modify: `core/services/shopping_list.py`, `core/repositories.py`, `bot/keyboards.py` (`kb_shoplist_offer`), `bot/handlers/plan.py`
@@ -1114,9 +1443,6 @@ async def on_shoplist_text(
     cb: CallbackQuery, family: Family, db_session: AsyncSession
 ) -> None:
     """Список текстом — для мгновенной закупки без чек-листа (решение 2026-07-21)."""
-    if not _planning_enabled():
-        await cb.answer("Планирование сейчас выключено", show_alert=True)
-        return
     menu_id = int(cb.data.split(":")[-1])
     menu = await repositories.get_menu_with_meals(db_session, menu_id)
     if menu is None or menu.family_id != family.id or menu.status != MenuStatus.active:
@@ -1136,7 +1462,10 @@ async def on_shoplist_text(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
         )
     except LimitExceeded as e:
-        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
+        await placeholder.edit_text(
+            denial_text(e),
+            reply_markup=None if limits.subscription_active(family) else kb_want_subscription(),
+        )
         return
     except LLMError:
         logger.exception("plan: shoptext build failed menu_id={}", menu.id)
@@ -1162,7 +1491,7 @@ git commit -m "feat(shopping): deliver list as plain text on demand, split gener
 
 ---
 
-### Task 6: Полная очистка списка покупок
+### Task 7: Полная очистка списка покупок
 
 **Files:**
 - Modify: `core/services/shopping_list.py`, `bot/keyboards.py` (`kb_shopping_list` + новая kb), `bot/handlers/shopping.py`
@@ -1307,14 +1636,14 @@ git commit -m "feat(shopping): clear entire list with confirmation"
 
 ---
 
-### Task 7: /settings-хвосты и тексты для внешних семей
+### Task 8: /settings-хвосты и тексты для внешних семей
 
 **Files:**
 - Modify: `bot/handlers/settings.py`, `bot/handlers/menu.py:44-66`, `tests/unit/test_scheduler.py`
 - Test: `tests/unit/test_settings_handlers.py`, `tests/unit/test_menu_handlers.py`
 
 **Interfaces:**
-- Produces: не-админ на `set:*` получает alert (не спиннер); `set:digest:` принимает только on/off; empty-тексты /menu и /today не упоминают JSON: при `planning_enabled` — зовут /plan (админам) или говорят «попросите администратора спланировать», при выключенном — «меню загружает администратор»; DST-тест `families_due`.
+- Produces: не-админ на `set:*` получает alert (не спиннер); `set:digest:` принимает только on/off; empty-тексты /menu и /today не упоминают JSON — зовут /plan (доступно администратору семьи); DST-тест `families_due`.
 
 - [ ] **Step 1: Падающие тесты**
 
@@ -1351,14 +1680,13 @@ async def test_cmd_menu_empty_no_json_mention(monkeypatch):
         return []
 
     monkeypatch.setattr(menu_handler.repositories, "get_future_meals", no_meals)
-    monkeypatch.setattr(get_settings(), "planning_enabled", True)
     message = AsyncMock()
     await menu_handler.cmd_menu(message, SimpleNamespace(id=1), db_session=None)
     text = message.answer.await_args.args[0]
     assert "JSON" not in text and "/plan" in text
 ```
 
-(аналогичный тест для cmd_today; и вариант planning_enabled=False → «администратор», без «/plan».)
+(аналогичный тест для cmd_today.)
 
 В `tests/unit/test_scheduler.py` — DST:
 
@@ -1397,13 +1725,11 @@ async def on_set_denied(cb: CallbackQuery) -> None:
     await cb.answer("Настройки меняет администратор семьи", show_alert=True)
 ```
 
-`bot/handlers/menu.py` — empty-тексты (импорт `from config import get_settings`):
+`bot/handlers/menu.py` — empty-тексты:
 
 ```python
 def _empty_menu_text() -> str:
-    if get_settings().planning_enabled:
-        return "Меню пока нет. Спланировать: /plan (доступно администратору семьи)."
-    return "Меню пока нет — его загружает администратор семьи."
+    return "Меню пока нет. Спланировать: /plan (доступно администратору семьи)."
 ```
 
 `cmd_menu`: `await message.answer(_empty_menu_text())`; `cmd_today`: `await message.answer(f"На сегодня ничего не запланировано. {_empty_menu_text()}")`.
@@ -1419,7 +1745,7 @@ git commit -m "fix(ux): settings alerts for non-admins, beta-friendly empty text
 
 ---
 
-### Task 8: Финализация
+### Task 9: Финализация
 
 **Files:**
 - Modify: `docs/superpowers/ROADMAP.md`
@@ -1428,38 +1754,40 @@ git commit -m "fix(ux): settings alerts for non-admins, beta-friendly empty text
 - [ ] **Step 1: ROADMAP**
 
 - В «В работе» добавить строку «План этапа 4: [2026-07-22-stage4-beta-launch.md](plans/2026-07-22-stage4-beta-launch.md).»
-- Секцию «Суперадмин-панель»: пометить «MVP сделан в этапе 4 (сводка+семьи+заявки); Позже: set_limit/отключение семьи (нужна таблица оверрайдов), broadcast, веб-дашборд».
-- В «Биллинг»: пометить «сбор заявок сделан в этапе 4 (subscription_requests)».
+- Секцию «Суперадмин-панель»: пометить «MVP сделан в этапе 4 (сводка+семьи+заявки, ручная подписка /grant //revoke через families.sub_until); Позже: гранулярный set_limit (таблица оверрайдов), отключение семьи, broadcast, веб-дашборд».
+- В «Биллинг»: пометить «сбор заявок и ручная активация подписки (/grant после оплаты СБП/переводом) сделаны в этапе 4; при масштабировании — Telegram Stars (см. анализ 2026-07-22); напоминание об истечении подписки — в роадмап».
+- Пункт про фича-флаг planning_enabled (если есть) — удалить: флаг выпилен в этапе 4.
 - Удалить/пометить сделанные пункты «Доставка списка на выбор» и «Полная очистка списка».
 
 - [ ] **Step 2: Полный прогон**
 
 Run: `.venv/bin/ruff check . && .venv/bin/pytest -q` → PASS
 
-- [ ] **Step 3: Ручной smoke (живой бот, PLANNING_ENABLED=true, SUPERADMIN_IDS=ваш id)**
+- [ ] **Step 3: Ручной smoke (живой бот, SUPERADMIN_IDS=ваш id)**
 
 1. Исчерпать триал (TRIAL_MENU_GEN_LIMIT=1) → отказ с кнопкой «Хочу подписку» → тап → «Записали», вам приходит уведомление; повторный тап — «уже в списке», без второго уведомления.
 2. /admin — сводка с числами и списком семей; от обычного юзера /admin молчит.
-3. Утвердить меню → две кнопки: «Показать текстом» дает текст без записи в /list; «В список /list» — пишет чек-лист; повторно «текстом» — рендер из БД (мгновенно).
-4. /list → «Очистить все» → подтверждение → пусто; «Нет» — список возвращается.
-5. PLANNING_ENABLED=false → все кнопки старых plan-сообщений отвечают «Планирование сейчас выключено».
-6. /menu на пустом меню — текст без «JSON».
+3. /grant <family_id> → админу семьи приходит «Подписка активна до …»; та же семья генерит меню сверх триала без отказа; в /admin у семьи «подписка до DD.MM.YYYY»; повторный /grant сдвигает дату еще на 30 дней; /revoke — триал-лимиты снова работают; /grant без аргумента — подсказка; от обычного юзера /grant молчит.
+4. Утвердить меню → две кнопки: «Показать текстом» дает текст без записи в /list; «В список /list» — пишет чек-лист; повторно «текстом» — рендер из БД (мгновенно).
+5. /list → «Очистить все» → подтверждение → пусто; «Нет» — список возвращается.
+6. /menu на пустом меню — текст без «JSON», с «/plan»; /plan есть в меню команд Telegram.
 7. Не-админ тапает кнопки в /settings — alert, не спиннер.
-8. Семья с исчерпанным триалом menu_gen не получает утреннее напоминание «Спланировать».
+8. Семья с исчерпанным триалом menu_gen не получает утреннее напоминание «Спланировать»; семья с активной подпиской — получает.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/ROADMAP.md
-git commit -m "docs(roadmap): stage 4 done — superadmin mvp, subscription requests"
+git commit -m "docs(roadmap): stage 4 done — superadmin mvp, full access grants, subscription requests"
 ```
 
 ---
 
 ## Вне скоупа этапа 4 (остается в роадмапе)
 
-- Суперадмин: set_limit per family (таблица оверрайдов лимитов), отключение семьи, broadcast, веб-дашборд.
-- Биллинг (Telegram Stars) — заявки уже собираются.
+- Суперадмин: гранулярный set_limit per family (таблица оверрайдов лимитов — подписка этапа 4 меняет только потолок через общий env), отключение семьи, broadcast, веб-дашборд.
+- Подписка: напоминание семье и суперадмину об истечении sub_until (сейчас истекшая подписка просто молча возвращает семью к триалу); показ статуса подписки юзеру (например, в /settings).
+- Биллинг: для беты деньги принимаются вручную (СБП/перевод), после оплаты суперадмин активирует подписку /grant; при масштабировании — подписка через Telegram Stars (обязательны для цифровых услуг внутри бота; вывод через Fragment в TON, мин. 1000 Stars, холд 21 день) или Tribute для рекуррентных карт. Заявки уже собираются (subscription_requests).
 - Онбординг-апгрейд: стиль готовки, инфо-подсказки (решение пользователя 2026-07-22: не в этот этап).
 - Лимиты в conversation.py — перед включением conversation_enabled (ROADMAP-заметка).
 - Фидбек по блюдам, магазины, локализация, webhook, очередь задач.
