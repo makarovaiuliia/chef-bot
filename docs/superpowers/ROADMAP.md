@@ -91,6 +91,12 @@ Tool-use агент ([conversation.py](../../core/services/conversation.py)) у�
 планирование, вопросы про блюда, произвольные правки. Основная статья расходов —
 токены, поэтому только платно и с лимитом.
 
+Перед включением conversation_enabled ОБЯЗАТЕЛЬНО: встроить лимиты в
+core/services/conversation.py — сейчас llm.chat агента идет мимо
+ensure_within_limits (месячный потолок не считается), а LimitExceeded из
+tool-вызовов гасится общим except Exception и уходит в LLM текстом вместо
+вежливого отказа юзеру.
+
 ### Группировка покупок по магазинам семьи
 
 В MVP убрана (enum `Store` → nullable-строка). Вернуть как per-family таблицу

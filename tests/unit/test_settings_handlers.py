@@ -89,3 +89,25 @@ async def test_set_hour_forged_payload_shows_alert(monkeypatch):
     cb.data = "set:hour:abc"
     await settings_handler.on_set_hour(cb, _family(), db_session=None)
     cb.answer.assert_awaited_once_with("Недоступный час", show_alert=True)
+
+
+async def test_set_hour_same_value_is_noop(monkeypatch):
+    fake_update = AsyncMock()
+    monkeypatch.setattr(settings_handler, "update_digest_settings", fake_update)
+    cb = AsyncMock()
+    cb.data = "set:hour:9"
+    await settings_handler.on_set_hour(cb, _family(digest_hour=9), db_session=None)
+    cb.answer.assert_awaited_once_with("Уже установлено")
+    cb.message.edit_text.assert_not_awaited()
+    fake_update.assert_not_awaited()
+
+
+async def test_toggle_digest_same_state_is_noop(monkeypatch):
+    fake_update = AsyncMock()
+    monkeypatch.setattr(settings_handler, "update_digest_settings", fake_update)
+    cb = AsyncMock()
+    cb.data = "set:digest:on"
+    await settings_handler.on_toggle_digest(cb, _family(digest_enabled=True), db_session=None)
+    cb.answer.assert_awaited_once_with()
+    cb.message.edit_text.assert_not_awaited()
+    fake_update.assert_not_awaited()

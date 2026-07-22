@@ -35,6 +35,9 @@ async def cmd_settings(message: Message, family: Family, family_member: FamilyMe
 @router.callback_query(F.data.startswith("set:digest:"))
 async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
     enabled = cb.data.split(":")[-1] == "on"
+    if enabled == family.digest_enabled:
+        await cb.answer()
+        return
     await update_digest_settings(db_session, family=family, enabled=enabled)
     await cb.message.edit_text(_settings_text(family), reply_markup=kb_settings(family))
     await cb.answer("Дайджест включен" if enabled else "Дайджест выключен")
@@ -44,6 +47,13 @@ async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session: AsyncS
 async def on_set_hour(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
     try:
         hour = int(cb.data.split(":")[-1])
+    except ValueError:
+        await cb.answer("Недоступный час", show_alert=True)
+        return
+    if hour == family.digest_hour:
+        await cb.answer("Уже установлено")
+        return
+    try:
         await update_digest_settings(db_session, family=family, hour=hour)
     except ValueError:
         await cb.answer("Недоступный час", show_alert=True)
