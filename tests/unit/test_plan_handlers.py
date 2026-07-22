@@ -13,6 +13,10 @@ def _family(**kw):
     )
 
 
+def _admin_member(**kw):
+    return SimpleNamespace(display_name="Юля", telegram_user_id=1, role="admin", **kw)
+
+
 async def test_generation_failure_shows_retry(monkeypatch):
     async def boom(*a, **kw):
         raise LLMInvalidResponse("bad json twice")
@@ -97,6 +101,23 @@ async def test_pick_alternative_vanished_meal_alerts(monkeypatch):
     cb.message.edit_text.assert_not_awaited()
 
 
+async def test_pick_alternative_value_error_alerts(monkeypatch):
+    async def boom(*a, **kw):
+        raise ValueError("Meal 5 not found")
+
+    monkeypatch.setattr(plan_handler, "apply_replacement", boom)
+    cb, state = AsyncMock(), AsyncMock()
+    cb.data = "plan:alt:0"
+    state.get_data.return_value = {
+        "replace_meal_id": 5,
+        "alternatives": [{"dish_name": "Х", "side_dishes": [], "protein_kind": "chicken"}],
+    }
+
+    await plan_handler.on_pick_alternative(cb, state, _family(), db_session=None)
+
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+
+
 async def test_pick_alternative_negative_index_alerts(monkeypatch):
     apply_mock = AsyncMock()
     monkeypatch.setattr(plan_handler, "apply_replacement", apply_mock)
@@ -135,6 +156,27 @@ async def test_suggest_llm_error_returns_to_pick(monkeypatch):
     state.set_state.assert_awaited_with(plan_handler.PlanFlow.replace_pick)
 
 
+async def test_on_approve_with_conflicts_asks_confirmation(monkeypatch):
+    menu = SimpleNamespace(id=7, family_id=1, days_count=3,
+                           start_date=date(2026, 7, 27), meals=[])
+
+    async def fake_draft(*a, **kw):
+        return menu
+
+    async def fake_preview(*a, **kw):
+        return {date(2026, 7, 27)}
+
+    monkeypatch.setattr(plan_handler, "_draft_menu", fake_draft)
+    monkeypatch.setattr(plan_handler.menu_planner, "preview_approve", fake_preview)
+    cb, state = AsyncMock(), AsyncMock()
+
+    await plan_handler.on_approve(cb, state, _family(), _admin_member(), db_session=None)
+
+    text = cb.message.edit_text.await_args.args[0]
+    assert "Перезаписать" in text
+    state.set_state.assert_awaited_once_with(plan_handler.PlanFlow.approve_confirm)
+
+
 async def test_do_approve_offers_shoplist_instead_of_building(monkeypatch):
     built = False
 
@@ -160,6 +202,20 @@ async def test_do_approve_offers_shoplist_instead_of_building(monkeypatch):
     offer_text = message.answer.await_args.args[0]
     assert "список покупок" in offer_text.lower()
     assert message.answer.await_args.kwargs["reply_markup"] is not None
+
+
+async def test_build_shopping_success_reports_count(monkeypatch):
+    async def fake_build(*a, **kw):
+        return [object(), object(), object()]
+
+    monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", fake_build)
+    message = AsyncMock()
+    menu = SimpleNamespace(id=7, days_count=3, start_date=date(2026, 7, 27), meals=[])
+
+    await plan_handler._build_shopping(message, _family(), db_session=None, menu=menu)
+
+    placeholder = message.answer.return_value
+    assert "3" in placeholder.edit_text.await_args.args[0]
 
 
 async def test_build_shoplist_rejects_draft_menu(monkeypatch):
@@ -204,6 +260,23 @@ async def test_build_shoplist_already_built_alerts_without_rebuilding(monkeypatc
     cb.answer.assert_awaited_once()
     assert cb.answer.await_args.kwargs.get("show_alert") is True
     build.assert_not_awaited()
+
+
+async def test_build_shoplist_foreign_menu_alerts(monkeypatch):
+    from core.db import MenuStatus
+
+    foreign = SimpleNamespace(id=7, family_id=999, status=MenuStatus.active, meals=[])
+
+    async def fake_get(*a, **kw):
+        return foreign
+
+    monkeypatch.setattr(plan_handler.repositories, "get_menu_with_meals", fake_get)
+    cb = AsyncMock()
+    cb.data = "plan:shoplist:7"
+
+    await plan_handler.on_build_shoplist(cb, _family(), db_session=None)
+
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
 
 
 async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch):

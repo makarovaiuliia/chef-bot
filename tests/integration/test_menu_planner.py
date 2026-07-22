@@ -71,6 +71,22 @@ async def test_generate_menu_retries_once_then_fails(db_session):
     assert await count_llm_operations(db_session, family_id=fam.id, operation="menu_gen") == 1
 
 
+async def test_retry_tokens_summed_into_single_usage_row(db_session):
+    from core.db import LlmUsage
+
+    fam = await _family(db_session)
+    llm = FakeLLM(["мусор", _ok_menu(3)])  # 100/200 токенов на вызов, 2 вызова
+    await menu_planner.generate_menu(
+        db_session, family=fam, start_date=START, days_count=3, llm=llm
+    )
+    rows = list(
+        (await db_session.execute(select(LlmUsage).where(LlmUsage.family_id == fam.id)))
+        .scalars().all()
+    )
+    assert len(rows) == 1
+    assert rows[0].tokens_in == 200 and rows[0].tokens_out == 400
+
+
 async def test_generate_menu_rejects_over_cap(db_session):
     fam = await _family(db_session)
     with pytest.raises(MenuTooLong):
