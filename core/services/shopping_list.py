@@ -94,6 +94,12 @@ async def close_stale_menu_items(session: AsyncSession, *, family_id: int) -> in
     return len(items)
 
 
+async def has_list_for_menu(session: AsyncSession, *, menu_id: int) -> bool:
+    """Список по этому меню уже собран (идемпотентность кнопки/ретрая)."""
+    stmt = select(ShoppingList.id).where(ShoppingList.menu_id == menu_id).limit(1)
+    return (await session.execute(stmt)).scalar_one_or_none() is not None
+
+
 def _menu_as_text(menu: Menu) -> str:
     lines = []
     for m in sorted(menu.meals, key=lambda m: (m.date, m.slot.value)):

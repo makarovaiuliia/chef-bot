@@ -203,6 +203,18 @@ async def test_build_from_menu_blocked_by_cap(db_session, monkeypatch):
     assert [i.id for i in after] == [i.id for i in before]
 
 
+async def test_has_list_for_menu_false_then_true_after_build(db_session):
+    fam, menu = await _family_with_menu(db_session)
+
+    assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is False
+
+    await shopping_list.build_from_menu(
+        db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM([_ITEMS])
+    )
+
+    assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is True
+
+
 async def test_build_from_menu_invalid_json_leaves_list_untouched(db_session):
     fam, menu = await _family_with_menu(db_session)
     await shopping_list.build_from_menu(

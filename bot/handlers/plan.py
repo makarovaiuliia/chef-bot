@@ -474,6 +474,9 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
     if menu is None or menu.family_id != family.id or menu.status != MenuStatus.active:
         await cb.answer("Меню не найдено или не утверждено", show_alert=True)
         return
+    if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
+        await cb.answer("Список по этому меню уже составлен — смотрите /list", show_alert=True)
+        return
     await cb.answer()
     await _build_shopping(cb.message, family, db_session, menu)
 

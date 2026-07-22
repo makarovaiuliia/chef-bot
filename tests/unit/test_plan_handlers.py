@@ -180,6 +180,32 @@ async def test_build_shoplist_rejects_draft_menu(monkeypatch):
     assert cb.answer.await_args.kwargs.get("show_alert") is True
 
 
+async def test_build_shoplist_already_built_alerts_without_rebuilding(monkeypatch):
+    from core.db import MenuStatus
+
+    menu = SimpleNamespace(id=7, family_id=1, status=MenuStatus.active, meals=[])
+
+    async def fake_get(*a, **kw):
+        return menu
+
+    monkeypatch.setattr(plan_handler.repositories, "get_menu_with_meals", fake_get)
+
+    async def fake_has_list(*a, **kw):
+        return True
+
+    monkeypatch.setattr(plan_handler.shopping_list, "has_list_for_menu", fake_has_list)
+    build = AsyncMock()
+    monkeypatch.setattr(plan_handler, "_build_shopping", build)
+    cb = AsyncMock()
+    cb.data = "plan:shoplist:7"
+
+    await plan_handler.on_build_shoplist(cb, _family(), db_session=None)
+
+    cb.answer.assert_awaited_once()
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+    build.assert_not_awaited()
+
+
 async def test_shopping_failure_keeps_menu_approved_and_offers_retry(monkeypatch):
     async def boom(*a, **kw):
         raise LLMInvalidResponse("bad")
