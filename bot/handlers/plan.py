@@ -25,7 +25,6 @@ from bot.keyboards import (
     kb_retry,
     kb_shoplist_offer,
 )
-from config import get_settings
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
@@ -43,23 +42,6 @@ from core.services.limits import denial_text
 router = Router()
 router.message.filter(HasFamily())
 router.callback_query.filter(HasFamily(), IsAdmin())
-
-
-def _planning_enabled() -> bool:
-    return get_settings().planning_enabled
-
-
-async def _planning_disabled_filter(message: Message) -> bool:
-    return not _planning_enabled()
-
-
-@router.message(Command("plan"), _planning_disabled_filter)
-async def cmd_plan_disabled(message: Message) -> None:
-    """Фича-флаг выключен: бот раздается до готовности планирования (спека §3)."""
-    await message.answer(
-        f"{emoji.MENU} Планирование меню в боте скоро появится. "
-        "Пока меню загружает администратор семьи."
-    )
 
 
 async def _start_plan_flow(message: Message, state: FSMContext, db_session: AsyncSession) -> None:
@@ -503,5 +485,5 @@ async def on_plan_reminder(cb: CallbackQuery, state: FSMContext, db_session: Asy
 
 @router.callback_query(F.data.startswith("plan:"))
 async def on_stale_callback(cb: CallbackQuery) -> None:
-    """Catch-all: кнопки старых сообщений (рестарт, state.clear(), выключенный флаг)."""
+    """Catch-all: кнопки старых сообщений (рестарт, state.clear())."""
     await cb.answer("Сессия планирования устарела — начните заново: /plan", show_alert=True)

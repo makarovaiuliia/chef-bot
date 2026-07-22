@@ -20,7 +20,7 @@ from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_plan_reminder
 from config import get_settings
 from core.db import Family
-from core.repositories import get_family_members
+from core.repositories import count_llm_operations, get_family_members
 from core.services import digest, reminders
 from core.services.family_service import get_admins
 
@@ -68,6 +68,12 @@ async def _send_plan_reminder(
 ) -> None:
     async with sessionmaker() as session:
         due = await reminders.plan_reminder_due(session, family_id=family.id, today=today)
+        if due:
+            used = await count_llm_operations(
+                session, family_id=family.id, operation="menu_gen"
+            )
+            if used >= get_settings().trial_menu_gen_limit:
+                due = False  # триал исчерпан — не зовем в dead-end
         admins = await get_admins(session, family_id=family.id) if due else []
     for admin in admins:
         try:
@@ -88,8 +94,7 @@ async def _process_due_family(
     """Все рассылки семьи в ее digest-час. Точка расширения для напоминаний."""
     if family.digest_enabled:
         await _send_family_digest(bot, sessionmaker, family, today)
-    if get_settings().planning_enabled:
-        await _send_plan_reminder(bot, sessionmaker, family, today)
+    await _send_plan_reminder(bot, sessionmaker, family, today)
 
 
 async def _tick_family(

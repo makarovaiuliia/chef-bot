@@ -1,21 +1,12 @@
-"""Флаг-условные анонсы: /plan в командах и /help только при включенном флаге."""
+"""/plan всегда в списке команд и в /help — планирование базовая функция."""
 from bot.handlers.start import help_text
 from bot.main import bot_commands
-from config import get_settings
 
 
-def test_bot_commands_with_flag():
-    cmds = [c.command for c in bot_commands(planning_enabled=True)]
+def test_bot_commands_always_include_plan():
+    cmds = [c.command for c in bot_commands()]
     assert "plan" in cmds
 
 
-def test_bot_commands_without_flag():
-    cmds = [c.command for c in bot_commands(planning_enabled=False)]
-    assert "plan" not in cmds
-
-
-def test_help_text_follows_flag(monkeypatch):
-    monkeypatch.setattr(get_settings(), "planning_enabled", True)
+def test_help_text_always_includes_plan():
     assert "/plan" in help_text()
-    monkeypatch.setattr(get_settings(), "planning_enabled", False)
-    assert "/plan" not in help_text()

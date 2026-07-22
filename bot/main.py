@@ -23,10 +23,11 @@ from config import get_settings
 from core.db import get_sessionmaker
 
 
-def bot_commands(*, planning_enabled: bool) -> list[BotCommand]:
-    commands = [
+def bot_commands() -> list[BotCommand]:
+    return [
         BotCommand(command="menu", description="Текущее меню"),
         BotCommand(command="today", description="Что готовить сегодня"),
+        BotCommand(command="plan", description="Спланировать меню"),
         BotCommand(command="list", description="Список покупок"),
         BotCommand(command="add", description="Добавить пункт в список"),
         BotCommand(command="profile", description="Профиль семьи"),
@@ -35,9 +36,6 @@ def bot_commands(*, planning_enabled: bool) -> list[BotCommand]:
         BotCommand(command="settings", description="Настройки семьи"),
         BotCommand(command="help", description="Справка"),
     ]
-    if planning_enabled:
-        commands.insert(2, BotCommand(command="plan", description="Спланировать меню"))
-    return commands
 
 
 def configure_logging(level: str) -> None:
@@ -77,7 +75,7 @@ async def main() -> None:
     )
     dp = create_dispatcher()
 
-    await bot.set_my_commands(bot_commands(planning_enabled=settings.planning_enabled))
+    await bot.set_my_commands(bot_commands())
     scheduler_tasks = start_scheduler(bot, get_sessionmaker())
     logger.info("starting bot polling")
     try:

@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     claude_model: str = "claude-sonnet-4-6"
     conversation_enabled: bool = False
-    planning_enabled: bool = False
 
     # спека §6: разовый (пожизненный) триал на семью + месячный anti-abuse потолок
     trial_menu_gen_limit: int = 4

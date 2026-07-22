@@ -60,19 +60,6 @@ async def test_custom_date_rejects_garbage():
     state.update_data.assert_not_awaited()
 
 
-async def test_planning_disabled_filter_reads_flag(monkeypatch):
-    monkeypatch.setattr(plan_handler, "_planning_enabled", lambda: False)
-    assert await plan_handler._planning_disabled_filter(AsyncMock()) is True
-    monkeypatch.setattr(plan_handler, "_planning_enabled", lambda: True)
-    assert await plan_handler._planning_disabled_filter(AsyncMock()) is False
-
-
-async def test_plan_stub_when_flag_off():
-    message = AsyncMock()
-    await plan_handler.cmd_plan_disabled(message)
-    assert "скоро" in message.answer.await_args.args[0]
-
-
 async def test_pick_alternative_out_of_range_alerts():
     cb, state = AsyncMock(), AsyncMock()
     cb.data = "plan:alt:5"
@@ -347,3 +334,31 @@ async def test_plan_reminder_deletes_orphan_draft(monkeypatch):
 
     assert deleted["menu_id"] == 42
     state.clear.assert_awaited_once()
+
+
+async def test_build_shoplist_happy_path_builds(monkeypatch):
+    """Бэклог этапа 3: happy-path — активное свое меню без списка запускает сборку."""
+    from core.db import MenuStatus
+
+    menu = SimpleNamespace(id=7, family_id=1, status=MenuStatus.active, meals=[])
+
+    async def fake_get(*a, **kw):
+        return menu
+
+    async def fake_has(*a, **kw):
+        return False
+
+    built = {}
+
+    async def fake_build(message, family, db_session, m):
+        built["menu_id"] = m.id
+
+    monkeypatch.setattr(plan_handler.repositories, "get_menu_with_meals", fake_get)
+    monkeypatch.setattr(plan_handler.shopping_list, "has_list_for_menu", fake_has)
+    monkeypatch.setattr(plan_handler, "_build_shopping", fake_build)
+    cb = AsyncMock()
+    cb.data = "plan:shoplist:7"
+
+    await plan_handler.on_build_shoplist(cb, _family(), db_session=None)
+
+    assert built["menu_id"] == 7

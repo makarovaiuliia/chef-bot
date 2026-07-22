@@ -28,11 +28,18 @@ async def build_shopping_reminder(
     return f"{emoji.SHOPPING} В списке покупок {_plural_items(len(items))} → /list"
 
 
+async def days_until_menu_end(
+    session: AsyncSession, *, family_id: int, today: DateType
+) -> int | None:
+    """Дней до последней даты активного меню; None — активного меню нет."""
+    meals = await repositories.get_future_meals(session, family_id, today)
+    if not meals:
+        return None
+    return (max(m.date for m in meals) - today).days
+
+
 async def plan_reminder_due(
     session: AsyncSession, *, family_id: int, today: DateType
 ) -> bool:
     """True ровно за 2 дня до конца активного меню (спека §5)."""
-    meals = await repositories.get_future_meals(session, family_id, today)
-    if not meals:
-        return False
-    return (max(m.date for m in meals) - today).days == 2
+    return await days_until_menu_end(session, family_id=family_id, today=today) == 2

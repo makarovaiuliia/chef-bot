@@ -1,7 +1,8 @@
 """Morning digest: today + tomorrow meals, defrost nudge, shopping line.
 
-Also appends a warning when the loaded menu has only 1–2 days left, so the
-user knows it's time to load a new one.
+Also appends a warning when the loaded menu has only 1 day left, so the
+user knows it's time to load a new one (the 2-days-left case is covered by
+the standalone plan reminder with a button, so the digest stays silent then).
 """
 from datetime import date as DateType
 from datetime import timedelta
@@ -22,13 +23,7 @@ def _format_day_block(header: str, d: DateType, meals: list[Meal]) -> str:
 async def _build_end_of_menu_warning(
     session: AsyncSession, family_id: int, today: DateType
 ) -> str | None:
-    future_meals = await repositories.get_future_meals(session, family_id, today)
-    if not future_meals:
-        return None
-    last_date = max(m.date for m in future_meals)
-    upcoming = (last_date - today).days
-    if upcoming == 2:
-        return f"{emoji.WARNING} Меню заканчивается через 2 дня — пора спланировать новое."
+    upcoming = await reminders.days_until_menu_end(session, family_id=family_id, today=today)
     if upcoming == 1:
         return f"{emoji.WARNING} Меню заканчивается завтра — пора спланировать новое."
     return None
