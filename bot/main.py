@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.handlers import admin as admin_handler
 from bot.handlers import family as family_handler
 from bot.handlers import freetext as freetext_handler
 from bot.handlers import load as load_handler
@@ -53,6 +54,7 @@ def create_dispatcher() -> Dispatcher:
     dp.message.outer_middleware(FamilyResolverMiddleware())
     dp.callback_query.outer_middleware(FamilyResolverMiddleware())
 
+    dp.include_router(admin_handler.router)  # суперадмин — вне семейной модели
     dp.include_router(family_handler.router)  # deep-link join + /family, /invite — ПЕРВЫМ
     dp.include_router(settings_handler.router)
     dp.include_router(subscription_handler.router)

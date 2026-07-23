@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from core.db import (
     ClaudeConversation,
+    Family,
     FamilyMember,
     LlmUsage,
     Meal,
@@ -319,21 +320,95 @@ async def count_llm_operations(
     return int(result.scalar_one())
 
 
+def _month_boundary(now: datetime) -> datetime:
+    """Граница календарного месяца для created_at-фильтров.
+
+    Строгое > с эпсилоном: SQLite сравнивает datetime текстово, bound-параметр
+    несет .000000, а CURRENT_TIMESTAMP пишет без микросекунд.
+    """
+    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+    return month_start - timedelta(microseconds=1)
+
+
 async def sum_llm_tokens_current_month(
     session: AsyncSession, *, family_id: int, now: datetime
 ) -> int:
     """Сумма токенов семьи с 1-го числа календарного месяца `now` (UTC)."""
-    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
-    # SQLite сравнивает datetime текстово: bound-параметр несет .000000, а
-    # CURRENT_TIMESTAMP пишет без микросекунд, поэтому >= на ровной границе
-    # месяца ложно исключает запись. Строгое > с эпсилоном корректно на обоих
-    # диалектах (PG сравнивает инстанты).
-    boundary = month_start - timedelta(microseconds=1)
+    boundary = _month_boundary(now)
     stmt = (
         select(func.coalesce(func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out), 0))
         .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
+
+
+async def admin_month_summary(session: AsyncSession, *, now: datetime) -> dict:
+    """Сводка за календарный месяц для /admin: семьи, операции, токены (все семьи)."""
+    boundary = _month_boundary(now)
+    families = int(
+        (await session.execute(select(func.count()).select_from(Family))).scalar_one()
+    )
+    ops_rows = (
+        await session.execute(
+            select(LlmUsage.operation, func.count())
+            .where(LlmUsage.created_at > boundary)
+            .group_by(LlmUsage.operation)
+        )
+    ).all()
+    tokens_row = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(LlmUsage.tokens_in), 0),
+                func.coalesce(func.sum(LlmUsage.tokens_out), 0),
+            ).where(LlmUsage.created_at > boundary)
+        )
+    ).one()
+    return {
+        "families": families,
+        "ops": {op: int(cnt) for op, cnt in ops_rows},
+        "tokens_in": int(tokens_row[0]),
+        "tokens_out": int(tokens_row[1]),
+    }
+
+
+async def families_overview(session: AsyncSession, *, now: datetime) -> list[dict]:
+    """По семье: id, имя, участники, часовой пояс, токены за месяц.
+
+    Подзапросами (не общий outerjoin двух таблиц сразу) — иначе декартово
+    произведение members × usage-строк раздувает SUM токенов.
+    """
+    boundary = _month_boundary(now)
+    members_sq = (
+        select(FamilyMember.family_id, func.count().label("members"))
+        .group_by(FamilyMember.family_id)
+        .subquery()
+    )
+    tokens_sq = (
+        select(
+            LlmUsage.family_id,
+            func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out).label("tokens"),
+        )
+        .where(LlmUsage.created_at > boundary)
+        .group_by(LlmUsage.family_id)
+        .subquery()
+    )
+    rows = (
+        await session.execute(
+            select(
+                Family.id, Family.name, Family.timezone,
+                func.coalesce(members_sq.c.members, 0),
+                func.coalesce(tokens_sq.c.tokens, 0),
+            )
+            .outerjoin(members_sq, members_sq.c.family_id == Family.id)
+            .outerjoin(tokens_sq, tokens_sq.c.family_id == Family.id)
+            .order_by(Family.id)
+        )
+    ).all()
+    return [
+        {"id": r[0], "name": r[1], "timezone": r[2], "members": int(r[3]),
+         "tokens_month": int(r[4])}
+        for r in rows
+    ]
 
 
 async def add_subscription_request(
