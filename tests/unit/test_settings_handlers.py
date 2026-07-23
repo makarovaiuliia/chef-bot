@@ -111,3 +111,25 @@ async def test_toggle_digest_same_state_is_noop(monkeypatch):
     cb.answer.assert_awaited_once_with()
     cb.message.edit_text.assert_not_awaited()
     fake_update.assert_not_awaited()
+
+
+async def test_non_admin_set_callback_gets_alert():
+    cb = AsyncMock()
+    cb.data = "set:hour:9"
+    await settings_handler.on_set_denied(cb)
+    assert cb.answer.await_args.kwargs.get("show_alert") is True
+
+
+async def test_garbage_digest_suffix_alerts(monkeypatch):
+    called = False
+
+    async def fake_update(*a, **kw):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(settings_handler, "update_digest_settings", fake_update)
+    cb = AsyncMock()
+    cb.data = "set:digest:whatever"
+    await settings_handler.on_toggle_digest(cb, _family(), db_session=None)
+    assert called is False
+    assert cb.answer.await_args.kwargs.get("show_alert") is True

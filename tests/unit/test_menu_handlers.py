@@ -35,6 +35,28 @@ async def test_cmd_today_keeps_recipe_buttons(monkeypatch):
     assert message.answer.await_args.kwargs.get("reply_markup") is not None
 
 
+async def test_cmd_menu_empty_no_json_mention(monkeypatch):
+    async def no_meals(*a, **kw):
+        return []
+
+    monkeypatch.setattr(menu_handler.repositories, "get_future_meals", no_meals)
+    message = AsyncMock()
+    await menu_handler.cmd_menu(message, SimpleNamespace(id=1), db_session=None)
+    text = message.answer.await_args.args[0]
+    assert "JSON" not in text and "/plan" in text
+
+
+async def test_cmd_today_empty_no_json_mention(monkeypatch):
+    async def no_meals(*a, **kw):
+        return []
+
+    monkeypatch.setattr(menu_handler.repositories, "get_meals_for_date", no_meals)
+    message = AsyncMock()
+    await menu_handler.cmd_today(message, SimpleNamespace(id=1), db_session=None)
+    text = message.answer.await_args.args[0]
+    assert "JSON" not in text and "/plan" in text
+
+
 async def test_cb_recipe_trial_denial_shows_polite_text_with_button(monkeypatch):
     from core.exceptions import TrialLimitExceeded
 

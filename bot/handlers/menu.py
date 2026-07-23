@@ -21,6 +21,10 @@ router.message.filter(HasFamily())
 router.callback_query.filter(HasFamily())
 
 
+def _empty_menu_text() -> str:
+    return "Меню пока нет. Спланировать: /plan (доступно администратору семьи)."
+
+
 def _format_today(meals: list[Meal], today: date) -> str:
     header = f"{emoji.TODAY} Сегодня · {format_date_short(today)}"
     return "\n".join([header, *format_meal_lines(meals)])
@@ -44,9 +48,7 @@ async def cmd_menu(
     today = date.today()
     meals = await repositories.get_future_meals(db_session, family.id, today)
     if not meals:
-        await message.answer(
-            "Меню не загружено. Пришли JSON-файл с меню."
-        )
+        await message.answer(_empty_menu_text())
         return
     await message.answer(_format_future_meals(meals, today))
 
@@ -59,10 +61,7 @@ async def cmd_today(
     today = date.today()
     meals = await repositories.get_meals_for_date(db_session, family.id, today)
     if not meals:
-        await message.answer(
-            "На сегодня в меню ничего не запланировано. "
-            "Пришли JSON-файл с меню."
-        )
+        await message.answer(f"На сегодня ничего не запланировано. {_empty_menu_text()}")
         return
     await message.answer(_format_today(meals, today), reply_markup=kb_meal_recipes(meals))
 

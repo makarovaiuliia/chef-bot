@@ -50,7 +50,7 @@ async def test_hasfamily_command_reaches_handler(dispatcher):
             await dispatcher.feed_update(bot, _make_update("/menu"))
 
         answer.assert_awaited_once()
-        assert "Меню не загружено" in answer.await_args.args[0]
+        assert "/plan" in answer.await_args.args[0]
     finally:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)

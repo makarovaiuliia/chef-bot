@@ -50,6 +50,15 @@ def test_invalid_timezone_falls_back_to_utc():
     assert families_due(fams, now=NOW, last_sent={}) == fams
 
 
+def test_due_across_dst_transition():
+    # Europe/Berlin: зимой UTC+1 (9:00 = 08:00 UTC), летом UTC+2 (9:00 = 07:00 UTC)
+    fam = [_family(1, tz="Europe/Berlin", hour=9)]
+    winter = datetime(2026, 1, 15, 8, 5, tzinfo=UTC)
+    summer = datetime(2026, 7, 15, 7, 5, tzinfo=UTC)
+    assert families_due(fam, now=winter, last_sent={}) == fam
+    assert families_due(fam, now=summer, last_sent={}) == fam
+
+
 def test_digest_disabled_family_still_due():
     # семья с выключенным дайджестом остается due — для напоминания о планировании
     fams = [_family(1, enabled=False)]
