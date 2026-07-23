@@ -111,7 +111,10 @@ async def on_tz_city(
         )
         return
     if tz is None:
-        await message.answer("Не узнал город, попробуйте иначе (например: Москва, Дубай).")
+        await message.answer(
+            "Не узнал город, попробуйте иначе (например: Москва, Дубай).",
+            reply_markup=ForceReply(),
+        )
         return
     await state.clear()
     now_local = datetime.now(ZoneInfo(tz)).strftime("%H:%M")

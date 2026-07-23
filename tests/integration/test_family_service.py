@@ -7,6 +7,7 @@ from core.db import Family
 from core.exceptions import (
     AlreadyInFamily,
     InvalidInviteCode,
+    LLMInvalidResponse,
     MemberNotInFamily,
     MonthlyCapExceeded,
 )
@@ -170,6 +171,16 @@ async def test_change_family_timezone_retries_on_bad_json(db_session):
     tz = await change_family_timezone(db_session, family=fam, city="Москва", llm=llm)
     assert tz == "Europe/Moscow"
     assert llm.calls == 2
+
+
+async def test_change_family_timezone_gives_up_after_two_bad_jsons(db_session):
+    fam = await _tz_family(db_session)
+    llm = FakeLLM(["мусор", "мусор"])
+    with pytest.raises(LLMInvalidResponse):
+        await change_family_timezone(db_session, family=fam, city="Москва", llm=llm)
+    assert llm.calls == 2
+    assert fam.timezone == "UTC"  # не тронута
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="tz_detect") == 1
 
 
 async def test_change_family_timezone_blocked_by_cap(db_session, monkeypatch):
