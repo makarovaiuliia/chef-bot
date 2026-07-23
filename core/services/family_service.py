@@ -1,10 +1,20 @@
 import secrets
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core import repositories
 from core.db import Family, FamilyMember, MemberRole
-from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
+from core.exceptions import (
+    AlreadyInFamily,
+    InvalidInviteCode,
+    LLMInvalidResponse,
+    MemberNotInFamily,
+)
+from core.llm import LLMClient, load_prompt, parse_json_response
+from core.services import limits
+from core.services.onboarding import get_llm_client
 
 
 def _new_invite_code() -> str:
@@ -141,3 +151,51 @@ async def grant_admin(
     member.role = MemberRole.admin
     await session.flush()
     return member
+
+
+async def change_family_timezone(
+    session: AsyncSession, *, family: Family, city: str, llm: LLMClient | None = None
+) -> str | None:
+    """Смена таймзоны семьи по городу через LLM (operation="tz_detect").
+
+    None — город не распознан или LLM вернул невалидную IANA-зону; таймзона
+    семьи в этом случае не меняется. Триал-лимита у операции нет (нет ключа
+    в _trial_limits) — ensure_within_limits проверит только месячный потолок.
+    """
+    await limits.ensure_within_limits(session, family_id=family.id, operation="tz_detect")
+    llm = llm or get_llm_client()
+    system_blocks = [{"type": "text", "text": load_prompt("timezone_detector")}]
+    messages = [{"role": "user", "content": f"Город: {city}"}]
+    tokens_in = tokens_out = 0
+    tz: str | None = None
+    last_error: LLMInvalidResponse | None = None
+    for _ in range(2):  # 1 попытка + 1 retry на невалидный JSON (как generate_profile)
+        resp = await llm.chat(
+            system_blocks=system_blocks, messages=messages, max_tokens=256
+        )
+        tokens_in += resp.tokens_in
+        tokens_out += resp.tokens_out
+        try:
+            data = parse_json_response(resp.text)
+        except LLMInvalidResponse as e:
+            last_error = e
+            continue
+        raw = data.get("timezone")
+        tz = str(raw) if raw else None
+        last_error = None
+        break
+    await repositories.log_llm_usage(
+        session, family_id=family.id, operation="tz_detect",
+        tokens_in=tokens_in, tokens_out=tokens_out,
+    )
+    if last_error is not None:
+        raise last_error
+    if tz is None:
+        return None
+    try:
+        ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError, KeyError):
+        return None
+    family.timezone = tz
+    await session.flush()
+    return tz

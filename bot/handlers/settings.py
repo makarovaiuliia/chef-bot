@@ -1,14 +1,22 @@
 """Настройки семьи: утренний дайджест (вкл/выкл, час). Менять может только админ."""
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, ForceReply, Message
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
-from bot.keyboards import kb_settings
+from bot.fsm import SettingsFlow
+from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main, kb_settings, kb_want_subscription
 from core import emoji
 from core.db import Family, FamilyMember
-from core.services.family_service import is_admin, update_digest_settings
+from core.exceptions import LimitExceeded, LLMError
+from core.services.family_service import change_family_timezone, is_admin, update_digest_settings
+from core.services.limits import denial_text, subscription_active
 
 router = Router()
 router.message.filter(HasFamily())
@@ -20,7 +28,7 @@ def _settings_text(family: Family) -> str:
     return (
         f"{emoji.PROFILE} Настройки семьи\n\n"
         f"Утренний дайджест: {state}, в {family.digest_hour}:00\n"
-        f"Часовой пояс: {family.timezone} (задается городом при онбординге)"
+        f"Часовой пояс: {family.timezone}"
     )
 
 
@@ -64,6 +72,62 @@ async def on_set_hour(cb: CallbackQuery, family: Family, db_session: AsyncSessio
         return
     await cb.message.edit_text(_settings_text(family), reply_markup=kb_settings(family))
     await cb.answer(f"Дайджест в {hour}:00")
+
+
+@router.callback_query(F.data == "set:tz", IsAdmin())
+async def on_tz_button(cb: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(SettingsFlow.tz_city)
+    await cb.message.answer(
+        "Напишите ваш город (например: Москва, Дубай):", reply_markup=ForceReply()
+    )
+    await cb.answer()
+
+
+@router.message(
+    SettingsFlow.tz_city,
+    F.text,
+    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.startswith("/"),
+    IsAdmin(),
+)
+async def on_tz_city(
+    message: Message, state: FSMContext, family: Family, db_session: AsyncSession
+) -> None:
+    try:
+        tz = await change_family_timezone(db_session, family=family, city=message.text)
+    except LimitExceeded as e:
+        await state.clear()
+        await message.answer(
+            denial_text(e),
+            reply_markup=None if subscription_active(family) else kb_want_subscription(),
+        )
+        return
+    except LLMError:
+        logger.exception("settings: tz detect failed family_id={}", family.id)
+        await state.clear()
+        await message.answer(
+            "Не получилось определить таймзону. Попробуйте позже: /settings",
+            reply_markup=kb_main(),
+        )
+        return
+    if tz is None:
+        await message.answer(
+            "Не узнал город, попробуйте иначе (например: Москва, Дубай).",
+            reply_markup=ForceReply(),
+        )
+        return
+    await state.clear()
+    now_local = datetime.now(ZoneInfo(tz)).strftime("%H:%M")
+    # ForceReply вытеснил постоянную клавиатуру — возвращаем (паттерн 3613a1f)
+    await message.answer(
+        f"{emoji.DONE} Таймзона обновлена: {tz} (у вас сейчас {now_local})",
+        reply_markup=kb_main(),
+    )
+
+
+@router.message(SettingsFlow.tz_city, ~F.text, IsAdmin())
+async def on_tz_city_not_text(message: Message) -> None:
+    await message.answer("Не узнал город, попробуйте текстом (например: Москва, Дубай).")
 
 
 @router.callback_query(F.data.startswith("set:"))

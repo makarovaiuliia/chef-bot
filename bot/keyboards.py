@@ -191,7 +191,8 @@ def kb_settings(family) -> InlineKeyboardMarkup:
     for h in (7, 8, 9, 10):
         mark = f"{emoji.DONE} " if family.digest_hour == h else ""
         b.button(text=f"{mark}{h}:00", callback_data=f"set:hour:{h}")
-    b.adjust(1, 4)
+    b.button(text=f"{emoji.TIMEZONE} Таймзона", callback_data="set:tz")
+    b.adjust(1, 4, 1)
     return b.as_markup()
 
 
