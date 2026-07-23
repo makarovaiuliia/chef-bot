@@ -53,4 +53,6 @@ class TrialLimitExceeded(LimitExceeded):
 
 
 class MonthlyCapExceeded(LimitExceeded):
-    pass
+    def __init__(self, subscribed: bool = False) -> None:
+        self.subscribed = subscribed
+        super().__init__()

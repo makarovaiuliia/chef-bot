@@ -226,7 +226,8 @@ async def _make_three_day_menu(db_session, family_id: int):
     )
 
 
-async def test_digest_warns_two_days_before_menu_ends(db_session):
+async def test_digest_has_no_two_day_warning(db_session):
+    # «2 дня» всегда покрывает напоминание с кнопкой — в дайджесте молчим
     family, _ = await create_family(
         db_session,
         telegram_user_id=111,
@@ -242,7 +243,7 @@ async def test_digest_warns_two_days_before_menu_ends(db_session):
     )
 
     assert text is not None
-    assert "через 2 дня" in text
+    assert "заканчивается" not in text
 
 
 async def test_digest_warns_one_day_before_menu_ends(db_session):

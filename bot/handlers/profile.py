@@ -9,7 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.filters import HasFamily, IsAdmin
 from bot.formatting import md_to_telegram_html
 from bot.fsm import ProfileEdit
-from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
+from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main
 from core import emoji
 from core.services.family_service import get_admins, is_admin, update_profile
 
@@ -65,4 +65,5 @@ async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
 async def on_new_text(message: Message, state: FSMContext, db_session, family) -> None:
     await update_profile(db_session, family=family, profile_md=message.text)
     await state.clear()
-    await message.answer(f"{emoji.DONE} Профиль обновлен.")
+    # ForceReply-редактирование вытеснило постоянную клавиатуру — возвращаем.
+    await message.answer(f"{emoji.DONE} Профиль обновлен.", reply_markup=kb_main())

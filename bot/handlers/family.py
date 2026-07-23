@@ -9,7 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 
 from bot.filters import HasFamily, IsAdmin
-from bot.keyboards import BTN_FAMILY
+from bot.keyboards import BTN_FAMILY, kb_main
 from core import emoji
 from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
 from core.repositories import get_family_members
@@ -61,7 +61,8 @@ async def start_with_invite(
     family_name = html.escape(joined_family.name) if joined_family.name else "Семья"
     await message.answer(
         f"{emoji.DONE} Вы присоединились к семье «{family_name}»!\n"
-        "Список покупок: /list, меню: /menu"
+        "Список покупок: /list, меню: /menu",
+        reply_markup=kb_main(),
     )
     admins = await get_admins(db_session, family_id=joined_family.id)
     member_name = _name(member.display_name, member.telegram_user_id)

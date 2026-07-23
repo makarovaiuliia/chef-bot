@@ -7,18 +7,22 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
-from bot.keyboards import BTN_TODAY, kb_meal_recipes
+from bot.keyboards import BTN_TODAY, kb_meal_recipes, kb_want_subscription
 from core import emoji, repositories
 from core.db import Family, Meal
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_meal_lines
 from core.ru_format import format_date_short
-from core.services import recipe_service
+from core.services import limits, recipe_service
 from core.services.limits import denial_text
 
 router = Router()
 router.message.filter(HasFamily())
 router.callback_query.filter(HasFamily())
+
+
+def _empty_menu_text() -> str:
+    return "Меню пока нет. Спланировать: /plan (доступно администратору семьи)."
 
 
 def _format_today(meals: list[Meal], today: date) -> str:
@@ -44,9 +48,7 @@ async def cmd_menu(
     today = date.today()
     meals = await repositories.get_future_meals(db_session, family.id, today)
     if not meals:
-        await message.answer(
-            "Меню не загружено. Пришли JSON-файл с меню."
-        )
+        await message.answer(_empty_menu_text())
         return
     await message.answer(_format_future_meals(meals, today))
 
@@ -59,10 +61,7 @@ async def cmd_today(
     today = date.today()
     meals = await repositories.get_meals_for_date(db_session, family.id, today)
     if not meals:
-        await message.answer(
-            "На сегодня в меню ничего не запланировано. "
-            "Пришли JSON-файл с меню."
-        )
+        await message.answer(f"На сегодня ничего не запланировано. {_empty_menu_text()}")
         return
     await message.answer(_format_today(meals, today), reply_markup=kb_meal_recipes(meals))
 
@@ -81,7 +80,8 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
             db_session, meal_id=meal.id, profile_md=family.profile_md or "", family_id=family.id
         )
     except LimitExceeded as e:
-        await placeholder.edit_text(denial_text(e))
+        markup = None if limits.subscription_active(family) else kb_want_subscription()
+        await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except LLMError:
         logger.exception("recipe generation failed meal_id={}", meal_id)

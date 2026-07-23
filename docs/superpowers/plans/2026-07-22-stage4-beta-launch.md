@@ -928,7 +928,7 @@ git commit -m "feat(admin): /admin superadmin summary — families, ops, tokens,
 **Interfaces:**
 - Consumes: `Family.sub_until` (Task 2), `IsSuperadmin` + admin router (Task 4), denial-места с kb подписки (Task 3).
 - Produces:
-  - `Settings.sub_monthly_token_cap_per_family: int = 2_000_000` (env `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY`) — потолок подписчика.
+  - `Settings.sub_monthly_token_cap_per_family: int = 600_000` (env `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY`) — потолок подписчика.
   - `limits.subscription_active(family: Family, today: date | None = None) -> bool` — `sub_until >= today` (UTC-дата).
   - `limits.ensure_within_limits` — грузит семью (`session.get(Family, family_id)`); при активной подписке триал-счетчики НЕ проверяются, потолок — подписочный, при превышении `MonthlyCapExceeded(subscribed=True)`; без подписки — прежнее поведение.
   - `MonthlyCapExceeded(subscribed: bool = False)` (существующие `raise MonthlyCapExceeded` продолжают работать); `denial_text` для subscribed-потолка — текст БЕЗ питча «подписка готовится»: «Месячный лимит подписки исчерпан — обновится 1-го числа следующего месяца.»
@@ -1073,7 +1073,7 @@ Run: → FAIL.
 
 ```python
     # месячный потолок токенов семьи с активной подпиской (выдана /grant)
-    sub_monthly_token_cap_per_family: int = 2_000_000
+    sub_monthly_token_cap_per_family: int = 600_000
 ```
 
 `.env.example`: `SUB_MONTHLY_TOKEN_CAP_PER_FAMILY=` с комментарием «потолок токенов подписчика».
@@ -1245,7 +1245,7 @@ git commit -m "feat(admin): manual subscription via /grant and /revoke, subscrib
   - `shopping_list.format_items_text(items) -> str` — «• name — quantity» построчно (работает и с ItemDraft, и с ShoppingItem — по атрибутам name/quantity).
   - `repositories.items_for_menu(session, *, menu_id: int) -> list[ShoppingItem]` — пункты списка данного меню.
   - `keyboards.kb_shoplist_offer(menu_id)` — ДВЕ кнопки: «В список /list» (`plan:shoplist:<id>`) и «Показать текстом» (`plan:shoptext:<id>`).
-  - Хендлер `on_shoplist_text` в plan.py (`plan:shoptext:`, ДО catch-all): если список в БД уже есть — рендер из БД без LLM; иначе `generate_items` → текст (БЕЗ записи в БД — кнопка «В список» останется рабочей и вызовет LLM снова, потолок стережет).
+  - Хендлер `on_shoplist_text` в plan.py (`plan:shoptext:`, ДО catch-all): если список в БД уже есть — рендер из БД без LLM; иначе `generate_items` → текст (БЕЗ записи в БД — кнопка «В список» останется рабочей и вызовет LLM снова, стерегут триал-лимит shopping и потолок).
 
 - [ ] **Step 1: Падающие тесты**
 
@@ -1765,6 +1765,7 @@ Run: `.venv/bin/ruff check . && .venv/bin/pytest -q` → PASS
 
 - [ ] **Step 3: Ручной smoke (живой бот, SUPERADMIN_IDS=ваш id)**
 
+0. ПЕРЕД alembic upgrade на проде: `SELECT menu_id, count(*) FROM shopping_lists GROUP BY menu_id HAVING count(*) > 1;` — при дублях слить/удалить осиротевшие списки (unique из 0007 иначе не применится).
 1. Исчерпать триал (TRIAL_MENU_GEN_LIMIT=1) → отказ с кнопкой «Хочу подписку» → тап → «Записали», вам приходит уведомление; повторный тап — «уже в списке», без второго уведомления.
 2. /admin — сводка с числами и списком семей; от обычного юзера /admin молчит.
 3. /grant <family_id> → админу семьи приходит «Подписка активна до …»; та же семья генерит меню сверх триала без отказа; в /admin у семьи «подписка до DD.MM.YYYY»; повторный /grant сдвигает дату еще на 30 дней; /revoke — триал-лимиты снова работают; /grant без аргумента — подсказка; от обычного юзера /grant молчит.

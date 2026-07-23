@@ -58,8 +58,8 @@ def test_plan_approve_confirm_buttons():
     assert datas == ["plan:approveyes", "plan:approveno"]
 
 
-def test_shoplist_offer_button():
-    assert _datas(kb_shoplist_offer(7)) == ["plan:shoplist:7"]
+def test_shoplist_offer_two_buttons():
+    assert _datas(kb_shoplist_offer(7)) == ["plan:shoplist:7", "plan:shoptext:7"]
 
 
 def test_plan_reminder_button():

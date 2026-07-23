@@ -3,11 +3,13 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.db import (
     ClaudeConversation,
+    Family,
     FamilyMember,
     LlmUsage,
     Meal,
@@ -18,6 +20,8 @@ from core.db import (
     ProteinKind,
     Recipe,
     ShoppingItem,
+    ShoppingList,
+    SubscriptionRequest,
 )
 
 # завтрак → обед → ужин; строковый порядок enum'а ("breakfast" < "dinner" < "lunch") не годится
@@ -253,6 +257,17 @@ async def get_shopping_item(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
+async def items_for_menu(session: AsyncSession, *, menu_id: int) -> list[ShoppingItem]:
+    """Пункты списка покупок данного меню (для рендера текстом без чек-листа)."""
+    stmt = (
+        select(ShoppingItem)
+        .join(ShoppingList, ShoppingItem.shopping_list_id == ShoppingList.id)
+        .where(ShoppingList.menu_id == menu_id)
+        .order_by(ShoppingItem.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
 async def mark_shopping_item_bought(
     session: AsyncSession, item_id: int, *, bought: bool = True
 ) -> ShoppingItem | None:
@@ -318,21 +333,151 @@ async def count_llm_operations(
     return int(result.scalar_one())
 
 
+def _month_boundary(now: datetime) -> datetime:
+    """Граница календарного месяца для created_at-фильтров.
+
+    Строгое > с эпсилоном: SQLite сравнивает datetime текстово, bound-параметр
+    несет .000000, а CURRENT_TIMESTAMP пишет без микросекунд.
+    """
+    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+    return month_start - timedelta(microseconds=1)
+
+
 async def sum_llm_tokens_current_month(
     session: AsyncSession, *, family_id: int, now: datetime
 ) -> int:
     """Сумма токенов семьи с 1-го числа календарного месяца `now` (UTC)."""
-    month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
-    # SQLite сравнивает datetime текстово: bound-параметр несет .000000, а
-    # CURRENT_TIMESTAMP пишет без микросекунд, поэтому >= на ровной границе
-    # месяца ложно исключает запись. Строгое > с эпсилоном корректно на обоих
-    # диалектах (PG сравнивает инстанты).
-    boundary = month_start - timedelta(microseconds=1)
+    boundary = _month_boundary(now)
     stmt = (
         select(func.coalesce(func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out), 0))
         .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
+
+
+async def admin_month_summary(session: AsyncSession, *, now: datetime) -> dict:
+    """Сводка за календарный месяц для /admin: семьи, операции, токены (все семьи)."""
+    boundary = _month_boundary(now)
+    families = int(
+        (await session.execute(select(func.count()).select_from(Family))).scalar_one()
+    )
+    ops_rows = (
+        await session.execute(
+            select(LlmUsage.operation, func.count())
+            .where(LlmUsage.created_at > boundary)
+            .group_by(LlmUsage.operation)
+        )
+    ).all()
+    tokens_row = (
+        await session.execute(
+            select(
+                func.coalesce(func.sum(LlmUsage.tokens_in), 0),
+                func.coalesce(func.sum(LlmUsage.tokens_out), 0),
+            ).where(LlmUsage.created_at > boundary)
+        )
+    ).one()
+    return {
+        "families": families,
+        "ops": {op: int(cnt) for op, cnt in ops_rows},
+        "tokens_in": int(tokens_row[0]),
+        "tokens_out": int(tokens_row[1]),
+    }
+
+
+async def families_overview(session: AsyncSession, *, now: datetime) -> list[dict]:
+    """По семье: id, имя, участники, часовой пояс, токены за месяц.
+
+    Подзапросами (не общий outerjoin двух таблиц сразу) — иначе декартово
+    произведение members × usage-строк раздувает SUM токенов.
+    """
+    boundary = _month_boundary(now)
+    members_sq = (
+        select(FamilyMember.family_id, func.count().label("members"))
+        .group_by(FamilyMember.family_id)
+        .subquery()
+    )
+    tokens_sq = (
+        select(
+            LlmUsage.family_id,
+            func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out).label("tokens"),
+        )
+        .where(LlmUsage.created_at > boundary)
+        .group_by(LlmUsage.family_id)
+        .subquery()
+    )
+    rows = (
+        await session.execute(
+            select(
+                Family.id, Family.name, Family.timezone, Family.sub_until,
+                func.coalesce(members_sq.c.members, 0),
+                func.coalesce(tokens_sq.c.tokens, 0),
+            )
+            .outerjoin(members_sq, members_sq.c.family_id == Family.id)
+            .outerjoin(tokens_sq, tokens_sq.c.family_id == Family.id)
+            .order_by(Family.id)
+        )
+    ).all()
+    return [
+        {"id": r[0], "name": r[1], "timezone": r[2], "sub_until": r[3],
+         "members": int(r[4]), "tokens_month": int(r[5])}
+        for r in rows
+    ]
+
+
+async def extend_family_subscription(
+    session: AsyncSession, *, family_id: int, days: int, today: DateType
+) -> DateType | None:
+    """Продлить подписку на days от max(today, текущее окончание). None — семьи нет."""
+    family = await session.get(Family, family_id)
+    if family is None:
+        return None
+    base = family.sub_until if family.sub_until and family.sub_until > today else today
+    family.sub_until = base + timedelta(days=days)
+    await session.flush()
+    return family.sub_until
+
+
+async def revoke_family_subscription(session: AsyncSession, *, family_id: int) -> bool:
+    family = await session.get(Family, family_id)
+    if family is None:
+        return False
+    family.sub_until = None
+    await session.flush()
+    return True
+
+
+async def add_subscription_request(
+    session: AsyncSession, *, family_id: int, telegram_user_id: int
+) -> bool:
+    """Заявка «хочу подписку». True — новая; False — по семье уже есть.
+
+    Select — быстрый путь без похода в savepoint в общем случае; сама вставка
+    защищена unique(family_id) через savepoint, так что гонка двух одновременных
+    заявок одной семьи не приводит к необработанному IntegrityError наружу."""
+    existing = (
+        await session.execute(
+            select(SubscriptionRequest.id).where(
+                SubscriptionRequest.family_id == family_id
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return False
+    try:
+        async with session.begin_nested():
+            session.add(
+                SubscriptionRequest(family_id=family_id, telegram_user_id=telegram_user_id)
+            )
+    except IntegrityError:
+        return False
+    return True
+
+
+async def count_subscription_requests(session: AsyncSession) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(SubscriptionRequest)
+    )
+    return int(result.scalar_one())
 
 
 async def recent_conversation(

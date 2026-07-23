@@ -46,6 +46,25 @@ async def test_join_notifies_all_admins(db_session):
     assert notified == {111, 222}  # оба админа, вступивший (333) — нет
 
 
+async def test_join_greeting_attaches_main_keyboard(db_session):
+    """Вступивший по инвайту раньше не получал kb_main вообще — только после
+    /help. Приветствие должно сразу нести постоянную reply-клавиатуру."""
+    from bot.keyboards import kb_main
+
+    family, _ = await create_family(
+        db_session, telegram_user_id=1, display_name="Юля",
+        profile_md="p", timezone="UTC", plan_slots=["dinner"],
+    )
+    message = AsyncMock()
+    message.from_user = SimpleNamespace(id=2, full_name="Вова")
+    command = SimpleNamespace(args=f"inv_{family.invite_code}")
+    state = AsyncMock()
+
+    await start_with_invite(message, command, db_session, state=state, family=None)
+
+    assert message.answer.await_args_list[0].kwargs["reply_markup"] == kb_main()
+
+
 async def test_start_with_invite_clears_fsm_state(db_session):
     """Клик по инвайт-ссылке посреди онбординга должен сбрасывать FSM-state."""
     family, _ = await create_family(

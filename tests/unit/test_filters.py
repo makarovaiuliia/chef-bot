@@ -17,3 +17,15 @@ async def test_is_admin():
     member = FamilyMember(family_id=1, telegram_user_id=2, role=MemberRole.member)
     assert await IsAdmin()(SimpleNamespace(), family_member=admin) is True
     assert await IsAdmin()(SimpleNamespace(), family_member=member) is False
+
+
+async def test_is_superadmin(monkeypatch):
+    from bot.filters import IsSuperadmin
+    from config import get_settings
+
+    monkeypatch.setattr(get_settings(), "superadmin_ids", [42])
+    yes = SimpleNamespace(from_user=SimpleNamespace(id=42))
+    no = SimpleNamespace(from_user=SimpleNamespace(id=7))
+    assert await IsSuperadmin()(yes) is True
+    assert await IsSuperadmin()(no) is False
+    assert await IsSuperadmin()(SimpleNamespace(from_user=None)) is False

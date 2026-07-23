@@ -10,3 +10,4 @@ def test_settings_load_from_env(monkeypatch):
     assert s.anthropic_api_key.get_secret_value() == "sk-test"
     assert s.timezone == "Asia/Bangkok"
     assert s.claude_model == "claude-sonnet-4-6"
+    assert s.trial_shopping_limit == 10

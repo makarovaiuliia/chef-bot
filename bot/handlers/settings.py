@@ -12,7 +12,7 @@ from core.services.family_service import is_admin, update_digest_settings
 
 router = Router()
 router.message.filter(HasFamily())
-router.callback_query.filter(HasFamily(), IsAdmin())
+router.callback_query.filter(HasFamily())
 
 
 def _settings_text(family: Family) -> str:
@@ -32,9 +32,13 @@ async def cmd_settings(message: Message, family: Family, family_member: FamilyMe
         await message.answer(_settings_text(family))
 
 
-@router.callback_query(F.data.startswith("set:digest:"))
+@router.callback_query(F.data.startswith("set:digest:"), IsAdmin())
 async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
-    enabled = cb.data.split(":")[-1] == "on"
+    suffix = cb.data.split(":")[-1]
+    if suffix not in {"on", "off"}:
+        await cb.answer("Недоступное значение", show_alert=True)
+        return
+    enabled = suffix == "on"
     if enabled == family.digest_enabled:
         await cb.answer()
         return
@@ -43,7 +47,7 @@ async def on_toggle_digest(cb: CallbackQuery, family: Family, db_session: AsyncS
     await cb.answer("Дайджест включен" if enabled else "Дайджест выключен")
 
 
-@router.callback_query(F.data.startswith("set:hour:"))
+@router.callback_query(F.data.startswith("set:hour:"), IsAdmin())
 async def on_set_hour(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
     try:
         hour = int(cb.data.split(":")[-1])
@@ -60,3 +64,8 @@ async def on_set_hour(cb: CallbackQuery, family: Family, db_session: AsyncSessio
         return
     await cb.message.edit_text(_settings_text(family), reply_markup=kb_settings(family))
     await cb.answer(f"Дайджест в {hour}:00")
+
+
+@router.callback_query(F.data.startswith("set:"))
+async def on_set_denied(cb: CallbackQuery) -> None:
+    await cb.answer("Настройки меняет администратор семьи", show_alert=True)
