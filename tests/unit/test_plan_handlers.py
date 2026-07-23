@@ -78,6 +78,45 @@ async def test_suggest_trial_denial_shows_polite_text_with_button(monkeypatch):
     state.clear.assert_awaited_once()
 
 
+async def test_generate_placeholder_restores_main_keyboard(monkeypatch):
+    """После кастомной даты (ForceReply) reply-клавиатура вытеснена; плейсхолдер
+    генерации возвращает её kb_main-ом, не плодя лишних сообщений."""
+    from bot.keyboards import kb_main
+
+    async def boom(*a, **kw):
+        raise LLMInvalidResponse("x")
+
+    monkeypatch.setattr(plan_handler.menu_planner, "generate_menu", boom)
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"start_date": "2026-07-27", "days": 5}
+    member = SimpleNamespace(display_name="Юля", telegram_user_id=1, role="admin")
+
+    await plan_handler._generate_and_show(message, state, _family(), member, db_session=None)
+
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
+async def test_suggest_placeholder_restores_main_keyboard(monkeypatch):
+    """После «своего пожелания» (ForceReply) плейсхолдер подбора возвращает kb_main."""
+    from bot.keyboards import kb_main
+
+    async def boom(*a, **kw):
+        raise LLMInvalidResponse("x")
+
+    monkeypatch.setattr(plan_handler, "suggest_replacements", boom)
+    monkeypatch.setattr(
+        plan_handler.repositories,
+        "get_meal_for_family",
+        AsyncMock(return_value=SimpleNamespace(dish_name="Рыба", slot="dinner")),
+    )
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"replace_meal_id": 1}
+
+    await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint="рыба")
+
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
 async def test_custom_date_rejects_garbage():
     message, state = AsyncMock(), AsyncMock()
     message.text = "вчера"

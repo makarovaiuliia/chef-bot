@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
-from bot.keyboards import BTN_ADD, kb_shop_clear_confirm, kb_shopping_list
+from bot.keyboards import BTN_ADD, kb_main, kb_shop_clear_confirm, kb_shopping_list
 from core import emoji, repositories
 from core.db import Family, FamilyMember
 from core.services import shopping_list
@@ -42,11 +42,13 @@ async def _add_items(
         await shopping_list.add_manual_item(
             db_session, family_id=family.id, name=name
         )
+    # kb_main возвращаем: ForceReply-приглашение «Что добавить?» вытеснило
+    # постоянную клавиатуру, подтверждение — момент вернуть ее.
     if len(names) == 1:
-        await message.answer(f"Добавил: {names[0]}")
+        await message.answer(f"Добавил: {names[0]}", reply_markup=kb_main())
     else:
         bullets = "\n".join(f"• {n}" for n in names)
-        await message.answer(f"Добавил:\n{bullets}")
+        await message.answer(f"Добавил:\n{bullets}", reply_markup=kb_main())
 
     await _notify_added(message, family, family_member, db_session, names)
 

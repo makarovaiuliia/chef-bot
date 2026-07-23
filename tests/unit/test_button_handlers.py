@@ -87,6 +87,24 @@ async def test_cmd_start_with_family_attaches_main_keyboard():
     assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
 
 
+async def test_profile_update_restores_main_keyboard(monkeypatch):
+    """Редактирование профиля идёт через ForceReply — подтверждение обязано
+    вернуть постоянную reply-клавиатуру."""
+    from bot.keyboards import kb_main
+
+    async def fake_update(session, *, family, profile_md):
+        return None
+
+    monkeypatch.setattr(profile, "update_profile", fake_update)
+    message = AsyncMock()
+    message.text = "новый профиль"
+    state = AsyncMock()
+
+    await profile.on_new_text(message, state, db_session=None, family=object())
+
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
 def test_profile_waiting_text_handler_excludes_keyboard_buttons():
     """Тап по кнопке клавиатуры во время редактирования профиля не должен
     матчиться хэндлером on_new_text (иначе он затрет profile_md текстом кнопки).

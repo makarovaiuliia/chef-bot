@@ -17,6 +17,7 @@ from bot.keyboards import (
     BTN_ADD,
     BTN_FAMILY,
     BTN_TODAY,
+    kb_main,
     kb_plan_alternatives,
     kb_plan_approve_confirm,
     kb_plan_draft,
@@ -162,7 +163,10 @@ async def _generate_and_show(
     data = await state.get_data()
     start = DateType.fromisoformat(data["start_date"])
     days = data["days"]
-    placeholder = await message.answer(f"{emoji.WAIT} Готовлю меню...")
+    # kb_main на плейсхолдере возвращает постоянную клавиатуру, вытесненную
+    # ForceReply кастомной даты (reply-клавиатура — уровень чата; последующий
+    # edit_text вешает inline-разметку на само сообщение, не конфликтуя).
+    placeholder = await message.answer(f"{emoji.WAIT} Готовлю меню...", reply_markup=kb_main())
     try:
         menu = await menu_planner.generate_menu(
             db_session, family=family, start_date=start, days_count=days
@@ -277,7 +281,10 @@ async def _suggest_and_show(
     if meal is None:
         await message.answer("Блюдо не найдено — начните заново: /plan")
         return
-    placeholder = await message.answer(f"{emoji.WAIT} Подбираю варианты...")
+    # см. _generate_and_show: возвращаем клавиатуру, вытесненную ForceReply «пожелания».
+    placeholder = await message.answer(
+        f"{emoji.WAIT} Подбираю варианты...", reply_markup=kb_main()
+    )
     try:
         options = await suggest_replacements(
             db_session,

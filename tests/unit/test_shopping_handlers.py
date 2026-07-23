@@ -19,6 +19,34 @@ def test_clear_confirm_keyboard():
     assert _datas(kb_shop_clear_confirm()) == ["shop:clear:yes", "shop:clear:no"]
 
 
+async def test_add_confirmation_restores_main_keyboard(monkeypatch):
+    """После добавления (ForceReply-флоу) подтверждение должно вернуть kb_main:
+    ForceReply вытесняет постоянную reply-клавиатуру, и её надо переприкрепить.
+    """
+    from bot.keyboards import kb_main
+
+    async def fake_add(session, *, family_id, name):
+        return None
+
+    async def fake_members(session, family_id):
+        return []
+
+    monkeypatch.setattr(shopping_handler.shopping_list, "add_manual_item", fake_add)
+    monkeypatch.setattr(shopping_handler.repositories, "get_family_members", fake_members)
+    monkeypatch.setattr(
+        shopping_handler.shopping_list, "build_added_notifications", lambda *a, **k: []
+    )
+    message = AsyncMock()
+    family = type("F", (), {"id": 1})()
+    member = type("M", (), {"id": 1})()
+
+    await shopping_handler._add_items(
+        message, family, member, db_session=None, names=["молоко"]
+    )
+
+    assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
 async def test_clear_yes_calls_service(monkeypatch):
     cleared = {}
 
