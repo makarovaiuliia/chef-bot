@@ -160,10 +160,9 @@ def kb_retry(callback: str) -> InlineKeyboardMarkup:
 
 def kb_shoplist_offer(menu_id: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(
-        text=f"{emoji.SHOPPING} Составить список покупок",
-        callback_data=f"plan:shoplist:{menu_id}",
-    )
+    b.button(text=f"{emoji.SHOPPING} В список /list", callback_data=f"plan:shoplist:{menu_id}")
+    b.button(text=f"{emoji.MENU} Показать текстом", callback_data=f"plan:shoptext:{menu_id}")
+    b.adjust(1)
     return b.as_markup()
 
 

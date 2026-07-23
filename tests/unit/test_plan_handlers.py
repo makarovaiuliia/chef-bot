@@ -381,6 +381,59 @@ async def test_plan_reminder_deletes_orphan_draft(monkeypatch):
     state.clear.assert_awaited_once()
 
 
+async def test_shoptext_renders_from_db_when_list_exists(monkeypatch):
+    from core.db import MenuStatus
+
+    menu = SimpleNamespace(id=7, family_id=1, status=MenuStatus.active, meals=[])
+
+    async def fake_get(*a, **kw):
+        return menu
+
+    async def fake_has(*a, **kw):
+        return True
+
+    async def fake_items(*a, **kw):
+        return [SimpleNamespace(name="Рис", quantity="500 г")]
+
+    generated = False
+
+    async def fake_generate(*a, **kw):
+        nonlocal generated
+        generated = True
+        return []
+
+    monkeypatch.setattr(plan_handler.repositories, "get_menu_with_meals", fake_get)
+    monkeypatch.setattr(plan_handler.shopping_list, "has_list_for_menu", fake_has)
+    monkeypatch.setattr(plan_handler.repositories, "items_for_menu", fake_items)
+    monkeypatch.setattr(plan_handler.shopping_list, "generate_items", fake_generate)
+    cb = AsyncMock()
+    cb.data = "plan:shoptext:7"
+
+    await plan_handler.on_shoplist_text(cb, _family(), db_session=None)
+
+    assert generated is False  # без LLM — рендер из БД
+    text = cb.message.answer.await_args.args[0]
+    assert "Рис" in text
+
+
+async def test_build_shopping_race_integrity_error_shows_polite_message(monkeypatch):
+    """Доп. требование ревью Task 2: двойной тап -> проигравший ловит IntegrityError."""
+    from sqlalchemy.exc import IntegrityError
+
+    async def boom(*a, **kw):
+        raise IntegrityError("insert", {}, Exception("unique violation"))
+
+    monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", boom)
+    message = AsyncMock()
+    menu = SimpleNamespace(id=7, days_count=3, start_date=date(2026, 7, 27), meals=[])
+
+    await plan_handler._build_shopping(message, _family(), db_session=None, menu=menu)
+
+    placeholder = message.answer.return_value
+    text = placeholder.edit_text.await_args.args[0]
+    assert "список" in text.lower() and "/list" in text
+
+
 async def test_build_shoplist_happy_path_builds(monkeypatch):
     """Бэклог этапа 3: happy-path — активное свое меню без списка запускает сборку."""
     from core.db import MenuStatus

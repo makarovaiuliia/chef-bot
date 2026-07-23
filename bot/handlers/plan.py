@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ForceReply, Message
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
@@ -449,6 +450,11 @@ async def _build_shopping(message: Message, family: Family,
         markup = None if limits.subscription_active(family) else kb_want_subscription()
         await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
+    except IntegrityError:
+        # проигравший гонки двойного тапа (unique на shopping_lists.menu_id)
+        logger.info("plan: shopping list build lost race menu_id={}", menu.id)
+        await placeholder.edit_text("Список уже собран — смотрите /list")
+        return
     except LLMError:
         logger.exception("plan: shopping list build failed menu_id={}", menu.id)
         await placeholder.edit_text(
@@ -478,6 +484,48 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
         return
     await cb.answer()
     await _build_shopping(cb.message, family, db_session, menu)
+
+
+@router.callback_query(F.data.startswith("plan:shoptext:"))
+async def on_shoplist_text(
+    cb: CallbackQuery, family: Family, db_session: AsyncSession
+) -> None:
+    """Список текстом — для мгновенной закупки без чек-листа (решение 2026-07-21)."""
+    menu_id = int(cb.data.split(":")[-1])
+    menu = await repositories.get_menu_with_meals(db_session, menu_id)
+    if menu is None or menu.family_id != family.id or menu.status != MenuStatus.active:
+        await cb.answer("Меню не найдено или не утверждено", show_alert=True)
+        return
+    if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
+        items = await repositories.items_for_menu(db_session, menu_id=menu.id)
+        await cb.answer()
+        await cb.message.answer(
+            f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}"
+        )
+        return
+    await cb.answer()
+    placeholder = await cb.message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    try:
+        drafts = await shopping_list.generate_items(
+            db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
+        )
+    except LimitExceeded as e:
+        await placeholder.edit_text(
+            denial_text(e),
+            reply_markup=None if limits.subscription_active(family) else kb_want_subscription(),
+        )
+        return
+    except LLMError:
+        logger.exception("plan: shoptext build failed menu_id={}", menu.id)
+        await placeholder.edit_text(
+            "Список собрать не получилось.",
+            reply_markup=kb_retry(f"plan:shoptext:{menu.id}"),
+        )
+        return
+    await placeholder.edit_text(
+        f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(drafts)}\n\n"
+        "Нужен чек-лист — нажмите «В список /list» выше."
+    )
 
 
 @router.callback_query(F.data == "plan:remind")

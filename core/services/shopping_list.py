@@ -17,13 +17,13 @@ def get_llm_client() -> LLMClient:
     return LLMClient()
 
 
-class _ItemSchema(BaseModel):
+class ItemDraft(BaseModel):
     name: str
     quantity: str = ""
 
 
 class _ShoppingSchema(BaseModel):
-    items: list[_ItemSchema] = Field(min_length=1)
+    items: list[ItemDraft] = Field(min_length=1)
 
 
 def build_added_notifications(
@@ -110,15 +110,15 @@ def _menu_as_text(menu: Menu) -> str:
     return "\n".join(lines)
 
 
-async def build_from_menu(
+async def generate_items(
     session: AsyncSession,
     *,
     family_id: int,
     menu: Menu,
     profile_md: str,
     llm: LLMClient | None = None,
-) -> list[ShoppingItem]:
-    """LLM-сборка списка покупок по блюдам меню (operation="shopping")."""
+) -> list[ItemDraft]:
+    """LLM-сборка пунктов по меню (operation="shopping"). БД не трогает."""
     await limits.ensure_within_limits(session, family_id=family_id, operation="shopping")
     llm = llm or get_llm_client()
     resp = await llm.chat(
@@ -130,24 +130,51 @@ async def build_from_menu(
         parsed = _ShoppingSchema.model_validate(parse_json_response(resp.text))
     except Exception as e:
         raise LLMInvalidResponse(f"Failed to parse shopping list: {e}") from e
+    await repositories.log_llm_usage(
+        session, family_id=family_id, operation="shopping",
+        tokens_in=resp.tokens_in, tokens_out=resp.tokens_out,
+    )
+    return parsed.items
 
+
+async def save_items(
+    session: AsyncSession, *, family_id: int, menu: Menu, items: list[ItemDraft]
+) -> list[ShoppingItem]:
+    """Записать собранные пункты: закрыть устаревшие, создать список меню."""
     await close_stale_menu_items(session, family_id=family_id)
     sl = ShoppingList(menu_id=menu.id)
     session.add(sl)
     await session.flush()
-    items = [
+    rows = [
         ShoppingItem(
             shopping_list_id=sl.id, family_id=family_id, name=i.name, quantity=i.quantity
         )
-        for i in parsed.items
+        for i in items
     ]
-    session.add_all(items)
+    session.add_all(rows)
     await session.flush()
-    await repositories.log_llm_usage(
-        session,
-        family_id=family_id,
-        operation="shopping",
-        tokens_in=resp.tokens_in,
-        tokens_out=resp.tokens_out,
+    return rows
+
+
+async def build_from_menu(
+    session: AsyncSession,
+    *,
+    family_id: int,
+    menu: Menu,
+    profile_md: str,
+    llm: LLMClient | None = None,
+) -> list[ShoppingItem]:
+    """LLM-сборка + запись (кнопка «В список»)."""
+    items = await generate_items(
+        session, family_id=family_id, menu=menu, profile_md=profile_md, llm=llm
     )
-    return items
+    return await save_items(session, family_id=family_id, menu=menu, items=items)
+
+
+def format_items_text(items) -> str:
+    """Текстовый список для «мгновенной закупки» — по атрибутам name/quantity."""
+    lines = []
+    for i in items:
+        suffix = f" — {i.quantity}" if i.quantity else ""
+        lines.append(f"• {i.name}{suffix}")
+    return "\n".join(lines)

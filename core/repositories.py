@@ -19,6 +19,7 @@ from core.db import (
     ProteinKind,
     Recipe,
     ShoppingItem,
+    ShoppingList,
     SubscriptionRequest,
 )
 
@@ -253,6 +254,17 @@ async def get_shopping_item(
         ShoppingItem.id == item_id, ShoppingItem.family_id == family_id
     )
     return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def items_for_menu(session: AsyncSession, *, menu_id: int) -> list[ShoppingItem]:
+    """Пункты списка покупок данного меню (для рендера текстом без чек-листа)."""
+    stmt = (
+        select(ShoppingItem)
+        .join(ShoppingList, ShoppingItem.shopping_list_id == ShoppingList.id)
+        .where(ShoppingList.menu_id == menu_id)
+        .order_by(ShoppingItem.id)
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def mark_shopping_item_bought(

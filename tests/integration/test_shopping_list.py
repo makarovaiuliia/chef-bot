@@ -215,6 +215,37 @@ async def test_has_list_for_menu_false_then_true_after_build(db_session):
     assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is True
 
 
+async def test_generate_items_no_db_writes(db_session):
+    fam, menu = await _family_with_menu(db_session)
+    items = await shopping_list.generate_items(
+        db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM([_ITEMS])
+    )
+    assert [i.name for i in items] == ["Куриные бёдра", "Рис"]
+    assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is False
+    assert await get_open_shopping_items(db_session, family_id=fam.id) == []
+    # usage залогирован
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="shopping") == 1
+
+
+async def test_save_items_persists_and_closes_stale(db_session):
+    fam, menu = await _family_with_menu(db_session)
+    drafts = [shopping_list.ItemDraft(name="Морковь", quantity="1 кг")]
+    saved = await shopping_list.save_items(
+        db_session, family_id=fam.id, menu=menu, items=drafts
+    )
+    assert saved[0].shopping_list_id is not None
+    assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is True
+
+
+def test_format_items_text():
+    drafts = [
+        shopping_list.ItemDraft(name="Рис", quantity="500 г"),
+        shopping_list.ItemDraft(name="Соль", quantity=""),
+    ]
+    text = shopping_list.format_items_text(drafts)
+    assert "• Рис — 500 г" in text and "• Соль" in text and "— \n" not in text
+
+
 async def test_build_from_menu_invalid_json_leaves_list_untouched(db_session):
     fam, menu = await _family_with_menu(db_session)
     await shopping_list.build_from_menu(
