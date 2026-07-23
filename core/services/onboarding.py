@@ -61,7 +61,7 @@ async def generate_profile(llm: LLMClient, answers: OnboardingAnswers) -> Profil
             data = parse_json_response(resp.text)
             return ProfileResult(
                 profile_md=str(data["profile_md"]),
-                timezone=str(data.get("timezone") or "UTC"),
+                timezone=str(data.get("timezone") or "Europe/Moscow"),
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
             )

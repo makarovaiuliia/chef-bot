@@ -80,7 +80,7 @@ class Family(Base):
     name: Mapped[str | None] = mapped_column(String(200))
     profile_md: Mapped[str | None] = mapped_column(Text)
     timezone: Mapped[str] = mapped_column(
-        String(64), default="UTC", server_default="UTC", nullable=False
+        String(64), default="Europe/Moscow", server_default="UTC", nullable=False
     )
     digest_hour: Mapped[int] = mapped_column(
         Integer, default=9, server_default="9", nullable=False

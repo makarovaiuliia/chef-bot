@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     bot_token: SecretStr
     anthropic_api_key: SecretStr
     db_url: str = "sqlite+aiosqlite:///./data/chef.db"
-    timezone: str = "Asia/Bangkok"
+    timezone: str = "Europe/Moscow"
     log_level: str = "INFO"
     claude_model: str = "claude-sonnet-4-6"
     conversation_enabled: bool = False

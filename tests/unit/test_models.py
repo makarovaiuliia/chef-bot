@@ -38,7 +38,7 @@ def test_meal_slot_has_breakfast():
 def test_family_defaults():
     # column defaults применяются на flush; проверяем определения колонок
     cols = Family.__table__.c
-    assert cols.timezone.default.arg == "UTC"
+    assert cols.timezone.default.arg == "Europe/Moscow"
     assert cols.digest_hour.default.arg == 9
     # SQLAlchemy оборачивает zero-arg lambda из модели в callable(ctx)
     assert cols.plan_slots.default.arg(None) == ["lunch", "dinner"]
