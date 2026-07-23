@@ -6,6 +6,7 @@ shopping list) from drifting into different icons on different surfaces.
 
 TODAY = "☀️"
 TOMORROW = "📅"  # also the per-day header in /menu
+TIMEZONE = "🌍"
 COOK = "🍳"  # кнопка «Сегодня» главной клавиатуры
 MENU = "📋"
 DEFROST = "🧊"

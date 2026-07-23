@@ -21,6 +21,10 @@ class Onboarding(StatesGroup):
     edit_profile = State()
 
 
+class SettingsFlow(StatesGroup):
+    tz_city = State()
+
+
 class PlanFlow(StatesGroup):
     start_date = State()
     custom_date = State()
