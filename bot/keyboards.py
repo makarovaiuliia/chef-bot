@@ -47,7 +47,17 @@ def kb_shopping_list(items) -> InlineKeyboardMarkup:
             label += f" — {item.quantity}"
         b.button(text=label, callback_data=f"shop:toggle:{item.id}")
     b.button(text=f"{emoji.ADD} Добавить", callback_data="shop:add")
+    if items:
+        b.button(text=f"{emoji.CANCEL} Очистить все", callback_data="shop:clear")
     b.adjust(1)
+    return b.as_markup()
+
+
+def kb_shop_clear_confirm() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text=f"{emoji.DONE} Да, очистить", callback_data="shop:clear:yes")
+    b.button(text=f"{emoji.CANCEL} Нет", callback_data="shop:clear:no")
+    b.adjust(2)
     return b.as_markup()
 
 

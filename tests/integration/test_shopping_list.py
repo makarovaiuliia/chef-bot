@@ -276,6 +276,17 @@ def test_format_items_text():
     assert "• Рис — 500 г" in text and "• Соль" in text and "— \n" not in text
 
 
+async def test_clear_all_open_closes_manual_and_menu_bound(db_session):
+    fam, menu = await _family_with_menu(db_session)
+    await shopping_list.add_manual_item(db_session, family_id=fam.id, name="Молоко")
+    await shopping_list.build_from_menu(
+        db_session, family_id=fam.id, menu=menu, profile_md="п", llm=FakeLLM([_ITEMS])
+    )
+    closed = await shopping_list.clear_all_open(db_session, family_id=fam.id)
+    assert closed == 3  # молоко + 2 из меню
+    assert await get_open_shopping_items(db_session, family_id=fam.id) == []
+
+
 async def test_build_from_menu_invalid_json_leaves_list_untouched(db_session):
     fam, menu = await _family_with_menu(db_session)
     await shopping_list.build_from_menu(

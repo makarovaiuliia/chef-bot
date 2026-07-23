@@ -81,6 +81,14 @@ async def add_manual_item(
     return item
 
 
+async def clear_all_open(session: AsyncSession, *, family_id: int) -> int:
+    """Закрыть ВСЕ открытые пункты семьи — и ручные, и menu-bound (полная очистка)."""
+    items = await repositories.get_open_shopping_items(session, family_id=family_id)
+    for item in items:
+        await repositories.mark_shopping_item_bought(session, item.id, bought=True)
+    return len(items)
+
+
 async def close_stale_menu_items(session: AsyncSession, *, family_id: int) -> int:
     """Закрыть открытые пункты прошлых меню. Ручные пункты (/add) не трогаем."""
     stmt = select(ShoppingItem).where(

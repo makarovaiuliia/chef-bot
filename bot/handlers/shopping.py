@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
-from bot.keyboards import BTN_ADD, kb_shopping_list
+from bot.keyboards import BTN_ADD, kb_shop_clear_confirm, kb_shopping_list
 from core import emoji, repositories
 from core.db import Family, FamilyMember
 from core.services import shopping_list
@@ -137,3 +137,28 @@ async def cb_toggle(
     else:
         await cb.message.edit_reply_markup(reply_markup=kb_shopping_list(open_items))
     await cb.answer("Готово")
+
+
+@router.callback_query(F.data == "shop:clear")
+async def cb_clear(cb: CallbackQuery) -> None:
+    await cb.message.edit_text(
+        "Закрыть все пункты списка? Это действие нельзя отменить.",
+        reply_markup=kb_shop_clear_confirm(),
+    )
+    await cb.answer()
+
+
+@router.callback_query(F.data == "shop:clear:yes")
+async def cb_clear_yes(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
+    closed = await shopping_list.clear_all_open(db_session, family_id=family.id)
+    await cb.message.edit_text(f"{emoji.DONE} Список очищен: закрыто пунктов — {closed}.")
+    await cb.answer()
+
+
+@router.callback_query(F.data == "shop:clear:no")
+async def cb_clear_no(cb: CallbackQuery, family: Family, db_session: AsyncSession) -> None:
+    items = await shopping_list.get_open_items(db_session, family_id=family.id)
+    await cb.message.edit_text(
+        f"<b>{emoji.SHOPPING} Список покупок</b>", reply_markup=kb_shopping_list(items)
+    )
+    await cb.answer()
