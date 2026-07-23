@@ -38,15 +38,14 @@
 
 ## Механика распознавания
 
-- `detect_timezone(llm, city: str) -> str | None` в
-  `core/services/onboarding.py` (рядом с `generate_profile` — тот же домен
-  «город → зона»). None — город не распознан.
+- Одна сервисная функция `family_service.change_family_timezone(session, *,
+  family, city, llm=None) -> str | None` (рядом с `update_digest_settings` —
+  настройки семьи живут там): лимиты → LLM → валидация → запись → usage.
+  None — город не распознан, таймзона не тронута.
 - Мини-промпт `core/prompts/timezone_detector.md` по паттерну остальных
-  промптов (build_system_blocks). LLM отвечает строго JSON
-  `{"timezone": "<IANA или null>"}`.
-- Валидация ответа: `ZoneInfo(tz)` (ZoneInfoNotFoundError → как «не
-  распознан»). Один автоматический retry на невалидный JSON — как в
-  generate_profile.
+  промптов. LLM отвечает строго JSON `{"timezone": "<IANA или null>"}`.
+- Валидация ответа: `ZoneInfo(tz)` (не распозналась — как «не распознан»).
+  Один автоматический retry на невалидный JSON — как в generate_profile.
 
 ## Лимиты и учет
 
@@ -60,9 +59,9 @@
 
 ## Хранение
 
-`families.timezone` — существующая колонка, миграций нет. Обновление —
-новая `repositories.update_family_timezone(session, *, family_id, timezone)`
-по образцу `update_digest_settings` (ее не расширяем — разные настройки,
+`families.timezone` — существующая колонка, миграций нет. Запись делает
+`change_family_timezone` (мутация family + flush, по образцу
+`update_digest_settings`; ее саму не расширяем — разные настройки,
 разные хендлеры).
 
 ## Что НЕ делаем (YAGNI)
