@@ -1,7 +1,19 @@
+import json
+
 import pytest
 
-from core.exceptions import AlreadyInFamily, InvalidInviteCode, MemberNotInFamily
+from config import get_settings
+from core.db import Family
+from core.exceptions import (
+    AlreadyInFamily,
+    InvalidInviteCode,
+    MemberNotInFamily,
+    MonthlyCapExceeded,
+)
+from core.llm import LLMResponse
+from core.repositories import count_llm_operations
 from core.services.family_service import (
+    change_family_timezone,
     create_family,
     get_admins,
     grant_admin,
@@ -11,6 +23,16 @@ from core.services.family_service import (
     resolve_member,
     update_digest_settings,
 )
+
+
+class FakeLLM:
+    def __init__(self, texts: list[str]):
+        self._texts = list(texts)
+        self.calls = 0
+
+    async def chat(self, **kwargs):
+        self.calls += 1
+        return LLMResponse(text=self._texts.pop(0), tokens_in=10, tokens_out=20)
 
 
 async def _make_family(db_session, tg_id=111):
@@ -99,3 +121,61 @@ async def test_update_digest_settings(db_session):
     assert family.digest_hour == 7
     with pytest.raises(ValueError):
         await update_digest_settings(db_session, family=family, hour=3)
+
+
+async def _tz_family(db_session):
+    fam = Family(name="f", timezone="UTC")
+    db_session.add(fam)
+    await db_session.flush()
+    return fam
+
+
+async def test_change_family_timezone_happy(db_session):
+    fam = await _tz_family(db_session)
+    ok = json.dumps({"timezone": "Asia/Yekaterinburg"})
+    tz = await change_family_timezone(
+        db_session, family=fam, city="Пермь", llm=FakeLLM([ok])
+    )
+    assert tz == "Asia/Yekaterinburg"
+    assert fam.timezone == "Asia/Yekaterinburg"
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="tz_detect") == 1
+
+
+async def test_change_family_timezone_unrecognized_city(db_session):
+    fam = await _tz_family(db_session)
+    ok = json.dumps({"timezone": None})
+    tz = await change_family_timezone(
+        db_session, family=fam, city="асдфг", llm=FakeLLM([ok])
+    )
+    assert tz is None
+    assert fam.timezone == "UTC"  # не тронута
+    # usage все равно залогирован
+    assert await count_llm_operations(db_session, family_id=fam.id, operation="tz_detect") == 1
+
+
+async def test_change_family_timezone_invalid_iana(db_session):
+    fam = await _tz_family(db_session)
+    ok = json.dumps({"timezone": "Europe/Mordor"})
+    tz = await change_family_timezone(
+        db_session, family=fam, city="Мордор", llm=FakeLLM([ok])
+    )
+    assert tz is None
+    assert fam.timezone == "UTC"
+
+
+async def test_change_family_timezone_retries_on_bad_json(db_session):
+    fam = await _tz_family(db_session)
+    ok = json.dumps({"timezone": "Europe/Moscow"})
+    llm = FakeLLM(["не json", ok])
+    tz = await change_family_timezone(db_session, family=fam, city="Москва", llm=llm)
+    assert tz == "Europe/Moscow"
+    assert llm.calls == 2
+
+
+async def test_change_family_timezone_blocked_by_cap(db_session, monkeypatch):
+    fam = await _tz_family(db_session)
+    monkeypatch.setattr(get_settings(), "monthly_token_cap_per_family", 0)
+    llm = FakeLLM([json.dumps({"timezone": "Europe/Moscow"})])
+    with pytest.raises(MonthlyCapExceeded):
+        await change_family_timezone(db_session, family=fam, city="Москва", llm=llm)
+    assert llm.calls == 0  # отказ ДО LLM-вызова
