@@ -451,8 +451,15 @@ async def _build_shopping(message: Message, family: Family,
         await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except IntegrityError:
-        # проигравший гонки двойного тапа (unique на shopping_lists.menu_id)
-        logger.info("plan: shopping list build lost race menu_id={}", menu.id)
+        # проигравший гонки двойного тапа (unique на shopping_lists.menu_id).
+        # menu_id читаем ДО rollback(): Session.rollback() экспайрит все
+        # instance'ы сессии, а ленивая подгрузка menu.id после этого упадет с
+        # MissingGreenlet (AsyncSession не поддерживает синхронный lazy-load).
+        # Без самого rollback() сессия осталась бы в must-rollback состоянии —
+        # commit из session_scope() поднял бы PendingRollbackError.
+        menu_id = menu.id
+        await db_session.rollback()
+        logger.info("plan: shopping list build lost race menu_id={}", menu_id)
         await placeholder.edit_text("Список уже собран — смотрите /list")
         return
     except LLMError:

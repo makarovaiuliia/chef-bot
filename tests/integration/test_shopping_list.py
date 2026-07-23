@@ -3,6 +3,7 @@ from datetime import date
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from bot.handlers.shopping import _notify_added
 from config import get_settings
@@ -235,6 +236,35 @@ async def test_save_items_persists_and_closes_stale(db_session):
     )
     assert saved[0].shopping_list_id is not None
     assert await shopping_list.has_list_for_menu(db_session, menu_id=menu.id) is True
+
+
+async def test_save_items_race_integrity_error_session_usable_after_rollback(db_session):
+    """Regression (ревью Task 6): двойной save_items по одному menu_id ловит
+    IntegrityError (unique на shopping_lists.menu_id, Task 2). Без явного
+    session.rollback() эта же сессия остаётся в must-rollback состоянии и
+    любой дальнейший flush/commit падает с PendingRollbackError — именно так
+    он и вылетал бы необработанным из session_scope() на happy-path commit.
+    """
+    fam, menu = await _family_with_menu(db_session)
+    # читаем ДО rollback(): после него menu/fam — expired instances (лениво
+    # подгрузить .id вне greenlet-контекста AsyncSession нельзя)
+    menu_id, fam_id = menu.id, fam.id
+    drafts = [shopping_list.ItemDraft(name="Соль", quantity="")]
+    await shopping_list.save_items(db_session, family_id=fam.id, menu=menu, items=drafts)
+    # имитируем session_scope().commit() выигравшего гонку запроса — его
+    # список уже персистентен к моменту, когда второй тап ловит IntegrityError
+    await db_session.commit()
+
+    with pytest.raises(IntegrityError):
+        await shopping_list.save_items(db_session, family_id=fam.id, menu=menu, items=drafts)
+
+    await db_session.rollback()
+
+    # сессия работоспособна после rollback — не PendingRollbackError;
+    # и ранее закоммиченный список никуда не делся
+    assert await shopping_list.has_list_for_menu(db_session, menu_id=menu_id) is True
+    item = await shopping_list.add_manual_item(db_session, family_id=fam_id, name="Хлеб")
+    assert item.id is not None
 
 
 def test_format_items_text():

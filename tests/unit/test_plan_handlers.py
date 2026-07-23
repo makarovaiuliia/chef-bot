@@ -425,10 +425,15 @@ async def test_build_shopping_race_integrity_error_shows_polite_message(monkeypa
 
     monkeypatch.setattr(plan_handler.shopping_list, "build_from_menu", boom)
     message = AsyncMock()
+    db_session = AsyncMock()
     menu = SimpleNamespace(id=7, days_count=3, start_date=date(2026, 7, 27), meals=[])
 
-    await plan_handler._build_shopping(message, _family(), db_session=None, menu=menu)
+    await plan_handler._build_shopping(message, _family(), db_session=db_session, menu=menu)
 
+    # регресс ревью: после пойманного IntegrityError сессия в must-rollback
+    # состоянии — без явного rollback() commit из session_scope() поднимет
+    # PendingRollbackError необработанным.
+    db_session.rollback.assert_awaited_once()
     placeholder = message.answer.return_value
     text = placeholder.edit_text.await_args.args[0]
     assert "список" in text.lower() and "/list" in text
