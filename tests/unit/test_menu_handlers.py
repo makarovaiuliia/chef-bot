@@ -50,7 +50,9 @@ async def test_cb_recipe_trial_denial_shows_polite_text_with_button(monkeypatch)
     cb = AsyncMock()
     cb.data = "meal:recipe:1"
 
-    await menu_handler.cb_recipe(cb, SimpleNamespace(id=1, profile_md=""), db_session=None)
+    await menu_handler.cb_recipe(
+        cb, SimpleNamespace(id=1, profile_md="", sub_until=None), db_session=None
+    )
 
     placeholder = cb.message.answer.return_value
     text = placeholder.edit_text.await_args.args[0]

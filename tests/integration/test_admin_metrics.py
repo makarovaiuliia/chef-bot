@@ -1,5 +1,5 @@
 """Метрики /admin: сводка за календарный месяц и обзор семей."""
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from core.db import Family, FamilyMember, MemberRole
 from core.repositories import (
@@ -29,7 +29,8 @@ async def test_admin_month_summary(db_session):
 
 async def test_families_overview(db_session):
     fam = Family(name="a", timezone="Asia/Bangkok")
-    db_session.add(fam)
+    fam2 = Family(name="b", timezone="UTC", sub_until=date(2026, 8, 21))
+    db_session.add_all([fam, fam2])
     await db_session.flush()
     db_session.add(FamilyMember(family_id=fam.id, telegram_user_id=1,
                                 role=MemberRole.admin))
@@ -46,3 +47,5 @@ async def test_families_overview(db_session):
     assert rows[0]["id"] == fam.id
     assert rows[0]["members"] == 2
     assert rows[0]["tokens_month"] == 19
+    assert rows[0]["sub_until"] is None
+    assert rows[1]["sub_until"] == date(2026, 8, 21)

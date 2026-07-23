@@ -31,7 +31,7 @@ from core.db import Family, FamilyMember, Menu, MenuStatus
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
-from core.services import menu_planner, shopping_list
+from core.services import limits, menu_planner, shopping_list
 from core.services.dish_replacer import (
     ReplacementOption,
     apply_replacement,
@@ -168,7 +168,8 @@ async def _generate_and_show(
         )
     except LimitExceeded as e:
         await state.clear()
-        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
+        markup = None if limits.subscription_active(family) else kb_want_subscription()
+        await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except LLMError:  # LLMInvalidResponse — подкласс; авто-retry уже был внутри
         logger.exception("plan: menu generation failed family_id={}", family.id)
@@ -286,7 +287,8 @@ async def _suggest_and_show(
         )
     except LimitExceeded as e:
         await state.clear()
-        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
+        markup = None if limits.subscription_active(family) else kb_want_subscription()
+        await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except LLMError:
         logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
@@ -444,7 +446,8 @@ async def _build_shopping(message: Message, family: Family,
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
         )
     except LimitExceeded as e:
-        await placeholder.edit_text(denial_text(e), reply_markup=kb_want_subscription())
+        markup = None if limits.subscription_active(family) else kb_want_subscription()
+        await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except LLMError:
         logger.exception("plan: shopping list build failed menu_id={}", menu.id)

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     trial_recipe_limit: int = 15
     trial_shopping_limit: int = 10
     monthly_token_cap_per_family: int = 500_000
+    # месячный потолок токенов семьи с активной подпиской (выдана /grant)
+    sub_monthly_token_cap_per_family: int = 600_000
 
     # суперадмины — операторы продукта, ОТДЕЛЬНЫЙ слой доверия, не роль семьи (роадмап)
     superadmin_ids: Annotated[list[int], NoDecode] = []

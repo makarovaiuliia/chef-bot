@@ -19,8 +19,10 @@ def _fake_sessionmaker():
 NOW = datetime(2026, 7, 21, 2, 7, tzinfo=UTC)
 
 
-def _family(fid, tz="Asia/Bangkok", hour=9, enabled=True):
-    return SimpleNamespace(id=fid, timezone=tz, digest_hour=hour, digest_enabled=enabled)
+def _family(fid, tz="Asia/Bangkok", hour=9, enabled=True, sub_until=None):
+    return SimpleNamespace(
+        id=fid, timezone=tz, digest_hour=hour, digest_enabled=enabled, sub_until=sub_until
+    )
 
 
 def test_due_when_local_hour_matches():
@@ -107,3 +109,27 @@ async def test_reminder_skipped_when_trial_exhausted(monkeypatch):
     await scheduler._send_plan_reminder(bot, _fake_sessionmaker(), _family(1), date(2026, 7, 22))
 
     bot.send_message.assert_not_awaited()
+
+
+async def test_reminder_sent_when_subscribed_despite_exhausted_trial(monkeypatch):
+    monkeypatch.setattr(get_settings(), "trial_menu_gen_limit", 1)
+
+    async def fake_due(session, *, family_id, today):
+        return True
+
+    async def fake_count(session, *, family_id, operation):
+        return 1  # лимит триала исчерпан, но семья подписана
+
+    async def fake_admins(session, *, family_id):
+        return [SimpleNamespace(telegram_user_id=1)]
+
+    monkeypatch.setattr(scheduler.reminders, "plan_reminder_due", fake_due)
+    monkeypatch.setattr(scheduler, "count_llm_operations", fake_count)
+    monkeypatch.setattr(scheduler, "get_admins", fake_admins)
+    bot = AsyncMock()
+    today = date(2026, 7, 22)
+    fam = _family(1, sub_until=date(2026, 8, 1))  # today + 10
+
+    await scheduler._send_plan_reminder(bot, _fake_sessionmaker(), fam, today)
+
+    bot.send_message.assert_awaited()

@@ -9,7 +9,8 @@ from core.exceptions import LLMInvalidResponse, MealNotFound
 
 def _family(**kw):
     return SimpleNamespace(
-        id=1, timezone="UTC", plan_slots=["lunch", "dinner"], profile_md="п", **kw
+        id=1, timezone="UTC", plan_slots=["lunch", "dinner"], profile_md="п",
+        sub_until=None, **kw
     )
 
 

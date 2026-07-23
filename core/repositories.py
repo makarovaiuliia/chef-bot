@@ -395,7 +395,7 @@ async def families_overview(session: AsyncSession, *, now: datetime) -> list[dic
     rows = (
         await session.execute(
             select(
-                Family.id, Family.name, Family.timezone,
+                Family.id, Family.name, Family.timezone, Family.sub_until,
                 func.coalesce(members_sq.c.members, 0),
                 func.coalesce(tokens_sq.c.tokens, 0),
             )
@@ -405,10 +405,32 @@ async def families_overview(session: AsyncSession, *, now: datetime) -> list[dic
         )
     ).all()
     return [
-        {"id": r[0], "name": r[1], "timezone": r[2], "members": int(r[3]),
-         "tokens_month": int(r[4])}
+        {"id": r[0], "name": r[1], "timezone": r[2], "sub_until": r[3],
+         "members": int(r[4]), "tokens_month": int(r[5])}
         for r in rows
     ]
+
+
+async def extend_family_subscription(
+    session: AsyncSession, *, family_id: int, days: int, today: DateType
+) -> DateType | None:
+    """Продлить подписку на days от max(today, текущее окончание). None — семьи нет."""
+    family = await session.get(Family, family_id)
+    if family is None:
+        return None
+    base = family.sub_until if family.sub_until and family.sub_until > today else today
+    family.sub_until = base + timedelta(days=days)
+    await session.flush()
+    return family.sub_until
+
+
+async def revoke_family_subscription(session: AsyncSession, *, family_id: int) -> bool:
+    family = await session.get(Family, family_id)
+    if family is None:
+        return False
+    family.sub_until = None
+    await session.flush()
+    return True
 
 
 async def add_subscription_request(

@@ -23,6 +23,7 @@ from core.db import Family
 from core.repositories import count_llm_operations, get_family_members
 from core.services import digest, reminders
 from core.services.family_service import get_admins
+from core.services.limits import subscription_active
 
 TICK_SECONDS = 900  # 15 минут
 
@@ -68,7 +69,7 @@ async def _send_plan_reminder(
 ) -> None:
     async with sessionmaker() as session:
         due = await reminders.plan_reminder_due(session, family_id=family.id, today=today)
-        if due:
+        if due and not subscription_active(family, today):
             used = await count_llm_operations(
                 session, family_id=family.id, operation="menu_gen"
             )
