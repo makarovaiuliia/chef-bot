@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -448,7 +449,11 @@ async def revoke_family_subscription(session: AsyncSession, *, family_id: int) -
 async def add_subscription_request(
     session: AsyncSession, *, family_id: int, telegram_user_id: int
 ) -> bool:
-    """Заявка «хочу подписку». True — новая; False — по семье уже есть."""
+    """Заявка «хочу подписку». True — новая; False — по семье уже есть.
+
+    Select — быстрый путь без похода в savepoint в общем случае; сама вставка
+    защищена unique(family_id) через savepoint, так что гонка двух одновременных
+    заявок одной семьи не приводит к необработанному IntegrityError наружу."""
     existing = (
         await session.execute(
             select(SubscriptionRequest.id).where(
@@ -458,10 +463,13 @@ async def add_subscription_request(
     ).scalar_one_or_none()
     if existing is not None:
         return False
-    session.add(
-        SubscriptionRequest(family_id=family_id, telegram_user_id=telegram_user_id)
-    )
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(
+                SubscriptionRequest(family_id=family_id, telegram_user_id=telegram_user_id)
+            )
+    except IntegrityError:
+        return False
     return True
 
 

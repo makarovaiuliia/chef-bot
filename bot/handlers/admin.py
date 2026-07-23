@@ -53,7 +53,7 @@ async def cmd_admin(message: Message, db_session: AsyncSession) -> None:
             f"{f['id']} · {name} · {f['members']} · {f['timezone']} · "
             f"{f['tokens_month']:,}"
         )
-        if f.get("sub_until"):
+        if f["sub_until"]:
             line += f" · подписка до {f['sub_until']:%d.%m.%Y}"
         lines.append(line)
     await message.answer("\n".join(lines))

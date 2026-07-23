@@ -13,7 +13,7 @@ async def test_cmd_admin_sends_summary(monkeypatch):
 
     async def fake_overview(session, *, now):
         return [{"id": 1, "name": "Тест", "members": 2,
-                 "timezone": "UTC", "tokens_month": 500}]
+                 "timezone": "UTC", "tokens_month": 500, "sub_until": None}]
 
     async def fake_requests(session):
         return 1
