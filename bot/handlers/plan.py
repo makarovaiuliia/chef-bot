@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
+from bot.formatting import wait_text
 from bot.fsm import PlanFlow
 from bot.keyboards import (
     BTN_ADD,
@@ -167,7 +168,9 @@ async def _generate_and_show(
     # kb_main на плейсхолдере возвращает постоянную клавиатуру, вытесненную
     # ForceReply кастомной даты (reply-клавиатура — уровень чата; последующий
     # edit_text вешает inline-разметку на само сообщение, не конфликтуя).
-    placeholder = await message.answer(f"{emoji.WAIT} Готовлю меню...", reply_markup=kb_main())
+    placeholder = await message.answer(
+        wait_text(emoji.WAIT, "Готовлю меню", "menu_gen"), reply_markup=kb_main()
+    )
     try:
         menu = await menu_planner.generate_menu(
             db_session, family=family, start_date=start, days_count=days
@@ -284,7 +287,7 @@ async def _suggest_and_show(
         return
     # см. _generate_and_show: возвращаем клавиатуру, вытесненную ForceReply «пожелания».
     placeholder = await message.answer(
-        f"{emoji.WAIT} Подбираю варианты...", reply_markup=kb_main()
+        wait_text(emoji.WAIT, "Подбираю варианты", "replace"), reply_markup=kb_main()
     )
     try:
         options = await suggest_replacements(
@@ -449,7 +452,9 @@ async def _do_approve(message: Message, state: FSMContext, family: Family,
 
 async def _build_shopping(message: Message, family: Family,
                           db_session: AsyncSession, menu: Menu) -> None:
-    placeholder = await message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    placeholder = await message.answer(
+        wait_text(emoji.SHOPPING, "Собираю список покупок", "shopping")
+    )
     try:
         items = await shopping_list.build_from_menu(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
@@ -520,7 +525,9 @@ async def on_shoplist_text(
         )
         return
     await cb.answer()
-    placeholder = await cb.message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    placeholder = await cb.message.answer(
+        wait_text(emoji.SHOPPING, "Собираю список покупок", "shopping")
+    )
     try:
         drafts = await shopping_list.generate_items(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""

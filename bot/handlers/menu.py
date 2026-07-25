@@ -7,6 +7,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
+from bot.formatting import wait_text
 from bot.keyboards import BTN_TODAY, kb_meal_recipes, kb_want_subscription
 from bot.replies import answer_long, edit_long
 from core import emoji, repositories
@@ -75,7 +76,14 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
         await cb.answer("Блюдо не найдено (меню обновилось?)", show_alert=True)
         return
     await cb.answer()
-    placeholder = await cb.message.answer(f"{emoji.WAIT} Готовлю рецепт...")
+    # Рецепт кэшируется: если он уже сохранен, обещать «до 30 секунд» нечестно —
+    # ответ придет мгновенно.
+    cached = await repositories.get_recipe(db_session, meal.id)
+    placeholder = await cb.message.answer(
+        f"{emoji.WAIT} Открываю рецепт..."
+        if cached is not None
+        else wait_text(emoji.WAIT, "Готовлю рецепт", "recipe")
+    )
     try:
         recipe = await recipe_service.get_recipe(
             db_session, meal_id=meal.id, profile_md=family.profile_md or "", family_id=family.id

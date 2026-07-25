@@ -170,9 +170,11 @@ async def test_tz_city_happy_saves_and_returns_kb_main(monkeypatch):
     await settings_handler.on_tz_city(message, state, _family(), db_session=None)
 
     state.clear.assert_awaited_once()
-    text = message.answer.await_args.args[0]
-    assert "Таймзона обновлена" in text and "Europe/Moscow" in text
+    # Плейсхолдер сразу возвращает kb_main (ForceReply города вытеснил ее),
+    # а результат правит то же сообщение.
     assert message.answer.await_args.kwargs.get("reply_markup") is not None
+    text = message.answer.return_value.edit_text.await_args.args[0]
+    assert "Таймзона обновлена" in text and "Europe/Moscow" in text
 
 
 async def test_tz_city_unrecognized_keeps_state(monkeypatch):
@@ -187,9 +189,11 @@ async def test_tz_city_unrecognized_keeps_state(monkeypatch):
     await settings_handler.on_tz_city(message, state, _family(), db_session=None)
 
     state.clear.assert_not_awaited()  # состояние живо — можно написать другой город
-    assert "Не узнал город" in message.answer.await_args.args[0]
+    assert "Не узнал город" in message.answer.return_value.edit_text.await_args.args[0]
     from aiogram.types import ForceReply
 
+    # Повторное приглашение идет отдельным сообщением: ForceReply нельзя
+    # прикрепить к edit_text, а фокус на вводе тут нужен.
     assert isinstance(message.answer.await_args.kwargs.get("reply_markup"), ForceReply)
 
 
@@ -207,7 +211,8 @@ async def test_tz_city_llm_error_clears_state(monkeypatch):
     await settings_handler.on_tz_city(message, state, _family(), db_session=None)
 
     state.clear.assert_awaited_once()
-    assert "Не получилось" in message.answer.await_args.args[0]
+    placeholder = message.answer.return_value
+    assert "Не получилось" in placeholder.edit_text.await_args.args[0]
 
 
 async def test_tz_city_cap_denial_with_subscription_kb(monkeypatch):
@@ -224,7 +229,8 @@ async def test_tz_city_cap_denial_with_subscription_kb(monkeypatch):
     await settings_handler.on_tz_city(message, state, _family(), db_session=None)
 
     state.clear.assert_awaited_once()
-    assert message.answer.await_args.kwargs.get("reply_markup") is not None  # kb подписки
+    placeholder = message.answer.return_value
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
 
 
 async def test_tz_city_cap_denial_no_kb_with_active_subscription(monkeypatch):
@@ -245,7 +251,8 @@ async def test_tz_city_cap_denial_no_kb_with_active_subscription(monkeypatch):
     )
 
     state.clear.assert_awaited_once()
-    assert message.answer.await_args.kwargs.get("reply_markup") is None
+    placeholder = message.answer.return_value
+    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is None
 
 
 async def test_tz_city_non_text_prompts_again():

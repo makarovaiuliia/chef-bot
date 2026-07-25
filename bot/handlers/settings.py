@@ -10,6 +10,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
+from bot.formatting import wait_text
 from bot.fsm import SettingsFlow
 from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main, kb_settings, kb_want_subscription
 from core import emoji
@@ -93,11 +94,17 @@ async def on_tz_button(cb: CallbackQuery, state: FSMContext) -> None:
 async def on_tz_city(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
+    # kb_main на плейсхолдере возвращает постоянную клавиатуру, вытесненную
+    # ForceReply города (паттерн 3613a1f); дальше правим само сообщение.
+    placeholder = await message.answer(
+        wait_text(emoji.TIMEZONE, "Определяю таймзону", "tz_detect"),
+        reply_markup=kb_main(),
+    )
     try:
         tz = await change_family_timezone(db_session, family=family, city=message.text)
     except LimitExceeded as e:
         await state.clear()
-        await message.answer(
+        await placeholder.edit_text(
             denial_text(e),
             reply_markup=None if subscription_active(family) else kb_want_subscription(),
         )
@@ -105,23 +112,21 @@ async def on_tz_city(
     except LLMError:
         logger.exception("settings: tz detect failed family_id={}", family.id)
         await state.clear()
-        await message.answer(
-            "Не получилось определить таймзону. Попробуйте позже: /settings",
-            reply_markup=kb_main(),
+        await placeholder.edit_text(
+            "Не получилось определить таймзону. Попробуйте позже: /settings"
         )
         return
     if tz is None:
+        await placeholder.edit_text("Не узнал город, попробуйте иначе:")
         await message.answer(
-            "Не узнал город, попробуйте иначе (например: Москва, Дубай).",
-            reply_markup=ForceReply(),
+            "Например: Москва, Дубай",
+            reply_markup=ForceReply(input_field_placeholder="ваш город"),
         )
         return
     await state.clear()
     now_local = datetime.now(ZoneInfo(tz)).strftime("%H:%M")
-    # ForceReply вытеснил постоянную клавиатуру — возвращаем (паттерн 3613a1f)
-    await message.answer(
-        f"{emoji.DONE} Таймзона обновлена: {tz} (у вас сейчас {now_local})",
-        reply_markup=kb_main(),
+    await placeholder.edit_text(
+        f"{emoji.DONE} Таймзона обновлена: {tz} (у вас сейчас {now_local})"
     )
 
 

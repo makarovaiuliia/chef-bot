@@ -5,9 +5,10 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
-from bot.formatting import md_to_telegram_html
+from bot.formatting import md_to_telegram_html, wait_text
 from bot.handlers.start import help_text
 from config import get_settings
+from core import emoji
 from core.db import Family, FamilyMember
 from core.services import conversation
 
@@ -37,7 +38,7 @@ async def handle_free_text(
         )
         return
 
-    thinking = await message.answer("⏳ Думаю...")
+    thinking = await message.answer(wait_text(emoji.WAIT, "Думаю", "conversation"))
     try:
         reply = await conversation.handle_message(
             db_session,

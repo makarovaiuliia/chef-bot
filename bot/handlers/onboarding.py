@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, ForceReply, Message
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.formatting import md_to_telegram_html
+from bot.formatting import md_to_telegram_html, wait_text
 from bot.fsm import Onboarding
 from bot.keyboards import (
     kb_cook_minutes,
@@ -225,7 +225,9 @@ async def _generate_and_show(
         extra=data.get("extra"),
         city=data.get("city"),
     )
-    placeholder = await message.answer(f"{emoji.WAIT} Составляю профиль семьи...")
+    placeholder = await message.answer(
+        wait_text(emoji.WAIT, "Составляю профиль семьи", "profile")
+    )
     try:
         result = await generate_profile(get_llm_client(), answers)
     except LLMError:  # LLMInvalidResponse — его подкласс
