@@ -4,9 +4,11 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.base import BaseStorage
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.errors import on_error
 from bot.handlers import admin as admin_handler
 from bot.handlers import family as family_handler
 from bot.handlers import freetext as freetext_handler
@@ -21,6 +23,7 @@ from bot.handlers import start as start_handler
 from bot.handlers import subscription as subscription_handler
 from bot.middlewares import FamilyResolverMiddleware
 from bot.scheduler import start_scheduler
+from bot.storage import build_storage
 from config import get_settings
 from core.db import get_sessionmaker
 
@@ -45,9 +48,12 @@ def configure_logging(level: str) -> None:
     logger.add(sys.stderr, level=level)
 
 
-def create_dispatcher() -> Dispatcher:
-    """Собирает Dispatcher с middleware и роутерами (без сайд-эффектов Telegram API)."""
-    dp = Dispatcher()
+def create_dispatcher(storage: BaseStorage | None = None) -> Dispatcher:
+    """Собирает Dispatcher с middleware и роутерами (без сайд-эффектов Telegram API).
+
+    storage=None — aiogram подставит MemoryStorage: так работают тесты.
+    """
+    dp = Dispatcher(storage=storage)
 
     # ВАЖНО: именно outer — фильтры (HasFamily/IsAdmin) читают family из data,
     # а inner-middleware выполняется уже ПОСЛЕ проверки фильтров.
@@ -66,6 +72,10 @@ def create_dispatcher() -> Dispatcher:
     dp.include_router(load_handler.router)
     dp.include_router(freetext_handler.router)  # HasFamily: catch-all для «семейных»
     dp.include_router(onboarding_handler.router)  # FSM + fallback для юзеров без семьи — ПОСЛЕДНИЙ
+
+    # Последняя линия: без нее необработанное исключение оставляет юзера перед
+    # плейсхолдером навсегда, а оператора — без сигнала о баге.
+    dp.errors.register(on_error)
     return dp
 
 
@@ -77,7 +87,7 @@ async def main() -> None:
         token=settings.bot_token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = create_dispatcher()
+    dp = create_dispatcher(build_storage())
 
     await bot.set_my_commands(bot_commands())
     scheduler_tasks = start_scheduler(bot, get_sessionmaker())

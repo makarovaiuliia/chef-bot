@@ -1,4 +1,3 @@
-from functools import lru_cache
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -7,14 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core import emoji, repositories
 from core.db import FamilyMember, Menu, ShoppingItem, ShoppingList
 from core.exceptions import LLMInvalidResponse
-from core.llm import LLMClient, build_system_blocks, parse_json_response
+from core.llm import LLMClient, build_system_blocks, get_llm_client, parse_json_response
 from core.meal_format import format_dish_with_sides, slot_label
 from core.services import limits
-
-
-@lru_cache
-def get_llm_client() -> LLMClient:
-    return LLMClient()
 
 
 class ItemDraft(BaseModel):

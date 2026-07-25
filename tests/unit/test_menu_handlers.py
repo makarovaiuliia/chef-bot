@@ -69,6 +69,9 @@ async def test_cb_recipe_trial_denial_shows_polite_text_with_button(monkeypatch)
         AsyncMock(return_value=SimpleNamespace(id=1)),
     )
     monkeypatch.setattr(menu_handler.recipe_service, "get_recipe", blocked)
+    monkeypatch.setattr(
+        menu_handler.repositories, "get_recipe", AsyncMock(return_value=None)
+    )
     cb = AsyncMock()
     cb.data = "meal:recipe:1"
 

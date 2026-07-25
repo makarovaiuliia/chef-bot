@@ -2,7 +2,7 @@
 from unittest.mock import AsyncMock
 
 from bot.handlers import onboarding as onb
-from core.exceptions import LLMError
+from core.exceptions import LLMError, OnboardingLimitExceeded
 
 
 async def test_on_profile_ok_when_already_in_family_clears_state():
@@ -24,19 +24,46 @@ async def test_generate_and_show_handles_llm_error(monkeypatch):
     async def boom(client, answers):
         raise LLMError("timeout")
 
+    async def allow(session, *, telegram_user_id, now=None):
+        return None
+
     monkeypatch.setattr(onb, "generate_profile", boom)
-    monkeypatch.setattr("core.services.onboarding.get_llm_client", lambda: object())
+    monkeypatch.setattr(onb, "ensure_onboarding_attempt_allowed", allow)
+    monkeypatch.setattr("core.llm.get_llm_client", lambda: object())
 
     message = AsyncMock()
     state = AsyncMock()
     state.get_data.return_value = {"household": "2 чел.", "slots": ["dinner"]}
 
-    await onb._generate_and_show(message, state)
+    await onb._generate_and_show(message, state, db_session=None, user_id=111)
 
     state.clear.assert_awaited_once()
     placeholder = message.answer.return_value
     placeholder.edit_text.assert_awaited_once()
     assert "/start" in placeholder.edit_text.await_args.args[0]
+
+
+async def test_generate_and_show_refuses_over_daily_limit(monkeypatch):
+    """Лимит исчерпан — до LLM не доходим и не показываем плейсхолдер."""
+    calls = []
+
+    async def deny(session, *, telegram_user_id, now=None):
+        raise OnboardingLimitExceeded(5)
+
+    async def unexpected(client, answers):
+        calls.append("llm")
+
+    monkeypatch.setattr(onb, "ensure_onboarding_attempt_allowed", deny)
+    monkeypatch.setattr(onb, "generate_profile", unexpected)
+
+    message = AsyncMock()
+    state = AsyncMock()
+
+    await onb._generate_and_show(message, state, db_session=None, user_id=111)
+
+    assert calls == []  # LLM не вызывали
+    state.clear.assert_awaited_once()
+    assert "5 попыток" in message.answer.await_args.args[0]
 
 
 async def test_on_profile_ok_creates_family_and_attaches_keyboard(monkeypatch):

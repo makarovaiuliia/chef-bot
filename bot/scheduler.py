@@ -2,12 +2,13 @@
 
 Тик каждые 15 минут: для каждой семьи, чей локальный час совпал с digest_hour
 и которой сегодня еще не слали, отправляется утренний дайджест (если включен).
-Дедупликация — in-memory (после рестарта в тот же час возможен повтор — MVP).
-При ошибке обработки семьи last_sent не проставляется — ретрай на следующем
-тике в пределах того же часа.
+Дедупликация — атомарная заявка в БД (families.last_digest_on): рестарт в тот
+же час или вторая реплика больше не дают повторный дайджест.
+При ошибке обработки семьи заявка возвращается — ретрай на следующем тике в
+пределах того же часа.
 """
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 from zoneinfo import ZoneInfo
 
@@ -19,13 +20,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_plan_reminder
 from config import get_settings
+from core import repositories
 from core.db import Family
 from core.repositories import count_llm_operations, get_family_members
-from core.services import digest, reminders
+from core.services import digest, reminders, subscription
 from core.services.family_service import get_admins
 from core.services.limits import subscription_active
 
 TICK_SECONDS = 900  # 15 минут
+CLEANUP_TICK_SECONDS = 6 * 3600  # чистка черновиков — четыре раза в сутки
 
 
 def _family_tz(family) -> ZoneInfo:
@@ -35,14 +38,17 @@ def _family_tz(family) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def families_due(
-    families, *, now: datetime, last_sent: dict[int, DateType]
-) -> list[Family]:
-    """Семьи, у которых сейчас локальный digest_hour и сегодня еще не слали."""
+def families_due(families, *, now: datetime) -> list[Family]:
+    """Семьи, у которых сейчас локальный digest_hour и сегодня еще не слали.
+
+    Отбор по колонке last_digest_on — грубый фильтр, чтобы не дергать БД на
+    каждую семью. Право на отправку все равно берется атомарной заявкой в
+    _tick_family: между этой проверкой и заявкой могла вклиниться другая реплика.
+    """
     due = []
     for f in families:
         local = now.astimezone(_family_tz(f))
-        if local.hour == f.digest_hour and last_sent.get(f.id) != local.date():
+        if local.hour == f.digest_hour and f.last_digest_on != local.date():
             due.append(f)
     return due
 
@@ -89,6 +95,34 @@ async def _send_plan_reminder(
             )
 
 
+async def _send_subscription_notice(
+    bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
+) -> None:
+    """Предупредить админов и оператора об истечении подписки.
+
+    Идет мимо digest_enabled: это не дайджест, а платежное уведомление —
+    выключенные утренние сводки не должны его гасить.
+    """
+    family_text = subscription.expiry_notice(family, today)
+    if family_text is None:
+        return
+    async with sessionmaker() as session:
+        admins = await get_admins(session, family_id=family.id)
+    for admin in admins:
+        try:
+            await bot.send_message(admin.telegram_user_id, family_text)
+        except Exception:
+            logger.warning(
+                "scheduler: sub notice failed admin_id={}", admin.telegram_user_id
+            )
+    operator_text = subscription.operator_notice(family, today)
+    for operator_id in get_settings().superadmin_ids:
+        try:
+            await bot.send_message(operator_id, operator_text)
+        except Exception:
+            logger.warning("scheduler: sub notice failed operator_id={}", operator_id)
+
+
 async def _process_due_family(
     bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
 ) -> None:
@@ -96,27 +130,40 @@ async def _process_due_family(
     if family.digest_enabled:
         await _send_family_digest(bot, sessionmaker, family, today)
     await _send_plan_reminder(bot, sessionmaker, family, today)
+    await _send_subscription_notice(bot, sessionmaker, family, today)
 
 
 async def _tick_family(
-    bot: Bot,
-    sessionmaker: async_sessionmaker,
-    family: Family,
-    now: datetime,
-    last_sent: dict[int, DateType],
+    bot: Bot, sessionmaker: async_sessionmaker, family: Family, now: datetime
 ) -> None:
-    """Process one due family; mark last_sent only on success (retry on failure)."""
+    """Обработать одну семью, взяв право на отправку атомарной заявкой.
+
+    Заявка берется ДО рассылки — иначе вторая реплика успеет отправить свой
+    дайджест, пока мы шлем свой. При ошибке заявка возвращается, чтобы
+    отправка повторилась на следующем тике в пределах того же часа.
+    """
     local_today = now.astimezone(_family_tz(family)).date()
+    previous = family.last_digest_on
+    async with sessionmaker() as session:
+        claimed = await repositories.claim_digest_slot(
+            session, family_id=family.id, local_date=local_today
+        )
+    if not claimed:
+        logger.debug("scheduler: family {} already claimed for {}", family.id, local_today)
+        return
+    family.last_digest_on = local_today
     try:
         await _process_due_family(bot, sessionmaker, family, local_today)
     except Exception:
         logger.exception("scheduler: family {} failed", family.id)
-        return
-    last_sent[family.id] = local_today
+        family.last_digest_on = previous
+        async with sessionmaker() as session:
+            await repositories.release_digest_slot(
+                session, family_id=family.id, previous=previous
+            )
 
 
 async def _scheduler_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
-    last_sent: dict[int, DateType] = {}
     while True:
         await asyncio.sleep(TICK_SECONDS)
         now = datetime.now(UTC)
@@ -126,13 +173,38 @@ async def _scheduler_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
         except Exception:
             logger.exception("scheduler: failed to load families")
             continue
-        for family in families_due(families, now=now, last_sent=last_sent):
-            await _tick_family(bot, sessionmaker, family, now, last_sent)
+        for family in families_due(families, now=now):
+            await _tick_family(bot, sessionmaker, family, now)
+
+
+async def _cleanup_loop(sessionmaker: async_sessionmaker) -> None:
+    """Периодически убирать осиротевшие черновики меню.
+
+    Срок берем из fsm_ttl_hours: к этому моменту состояние диалога в любом
+    случае истекло, значит утвердить черновик уже невозможно.
+    """
+    while True:
+        await asyncio.sleep(CLEANUP_TICK_SECONDS)
+        cutoff = datetime.now(UTC) - timedelta(hours=get_settings().fsm_ttl_hours)
+        try:
+            async with sessionmaker() as session:
+                removed = await repositories.delete_stale_drafts(
+                    session, older_than=cutoff
+                )
+                await session.commit()
+        except Exception:
+            logger.exception("scheduler: draft cleanup failed")
+            continue
+        if removed:
+            logger.info("scheduler: удалено осиротевших черновиков: {}", removed)
 
 
 def start_scheduler(bot: Bot, sessionmaker: async_sessionmaker) -> list[asyncio.Task]:
     """Spawn background tasks. Caller is responsible for cancelling them at shutdown."""
-    return [asyncio.create_task(_scheduler_loop(bot, sessionmaker), name="digest")]
+    return [
+        asyncio.create_task(_scheduler_loop(bot, sessionmaker), name="digest"),
+        asyncio.create_task(_cleanup_loop(sessionmaker), name="cleanup"),
+    ]
 
 
-__all__ = ["start_scheduler", "families_due", "TICK_SECONDS"]
+__all__ = ["start_scheduler", "families_due", "TICK_SECONDS", "CLEANUP_TICK_SECONDS"]

@@ -18,10 +18,18 @@ async def test_cmd_admin_sends_summary(monkeypatch):
     async def fake_requests(session):
         return 1
 
+    async def fake_onboarding(session, *, now):
+        return 4
+
     monkeypatch.setattr(admin_handler.repositories, "admin_month_summary", fake_summary)
     monkeypatch.setattr(admin_handler.repositories, "families_overview", fake_overview)
     monkeypatch.setattr(
         admin_handler.repositories, "count_subscription_requests", fake_requests
+    )
+    monkeypatch.setattr(
+        admin_handler.repositories,
+        "count_onboarding_attempts_today_all",
+        fake_onboarding,
     )
     message = AsyncMock()
 
@@ -29,6 +37,7 @@ async def test_cmd_admin_sends_summary(monkeypatch):
 
     text = message.answer.await_args.args[0]
     assert "Семей: 3" in text and "menu_gen: 5" in text and "Тест" in text
+    assert "Онбординг сегодня: 4 попыток" in text
     assert "$" in text  # оценка стоимости присутствует
 
 

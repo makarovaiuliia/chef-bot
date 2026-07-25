@@ -42,6 +42,21 @@ class MemberNotInFamily(FamilyError):
     pass
 
 
+class LastAdminCannotLeave(FamilyError):
+    """Единственный админ не может уйти, пока в семье есть другие участники:
+    иначе семья остается без прав на планирование, инвайты и профиль."""
+
+
+class CannotRemoveAdmin(FamilyError):
+    """Админ удаляет только участников (role=member). Удаление админа было бы
+    снятием админки через черный ход (спека §4: передачи роли нет), а себя
+    админ убирает кнопкой «Покинуть семью»."""
+
+
+class FamilyBusy(ChefBotError):
+    """У семьи уже идет LLM-операция: защита от двойного тапа по кнопке."""
+
+
 class LimitExceeded(ChefBotError):
     """База: лимит триала или месячный токен-потолок исчерпан."""
 
@@ -56,3 +71,15 @@ class MonthlyCapExceeded(LimitExceeded):
     def __init__(self, subscribed: bool = False) -> None:
         self.subscribed = subscribed
         super().__init__()
+
+
+class OnboardingLimitExceeded(LimitExceeded):
+    """Суточный лимит генераций профиля на telegram_user_id исчерпан.
+
+    Отдельно от TrialLimitExceeded: у онбординга нет family_id, а значит нет и
+    подписки, которая могла бы лимит снять.
+    """
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(limit)

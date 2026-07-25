@@ -12,7 +12,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily, IsAdmin
+from bot.formatting import wait_text
 from bot.fsm import PlanFlow
+from bot.inflight import BUSY_ALERT, llm_slot
 from bot.keyboards import (
     BTN_ADD,
     BTN_FAMILY,
@@ -28,9 +30,10 @@ from bot.keyboards import (
     kb_shoplist_offer,
     kb_want_subscription,
 )
+from bot.replies import answer_long, edit_long
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
-from core.exceptions import LimitExceeded, LLMError, MealNotFound
+from core.exceptions import FamilyBusy, LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import limits, menu_planner, shopping_list
@@ -135,9 +138,13 @@ async def on_duration(
     if days not in {3, 5, 7}:
         await cb.answer("Недоступная длительность", show_alert=True)
         return
-    await state.update_data(days=days)
-    await cb.answer()
-    await _generate_and_show(cb.message, state, family, family_member, db_session)
+    try:
+        async with llm_slot(family.id):
+            await state.update_data(days=days)
+            await cb.answer()
+            await _generate_and_show(cb.message, state, family, family_member, db_session)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 def _format_draft(menu: Menu) -> str:
@@ -166,7 +173,9 @@ async def _generate_and_show(
     # kb_main на плейсхолдере возвращает постоянную клавиатуру, вытесненную
     # ForceReply кастомной даты (reply-клавиатура — уровень чата; последующий
     # edit_text вешает inline-разметку на само сообщение, не конфликтуя).
-    placeholder = await message.answer(f"{emoji.WAIT} Готовлю меню...", reply_markup=kb_main())
+    placeholder = await message.answer(
+        wait_text(emoji.WAIT, "Готовлю меню", "menu_gen"), reply_markup=kb_main()
+    )
     try:
         menu = await menu_planner.generate_menu(
             db_session, family=family, start_date=start, days_count=days
@@ -249,9 +258,13 @@ async def on_pick_meal(
     cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
     meal_id = int(cb.data.split(":")[-1])
-    await state.update_data(replace_meal_id=meal_id)
-    await cb.answer()
-    await _suggest_and_show(cb.message, state, family, db_session, hint=None)
+    try:
+        async with llm_slot(family.id):
+            await state.update_data(replace_meal_id=meal_id)
+            await cb.answer()
+            await _suggest_and_show(cb.message, state, family, db_session, hint=None)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.message(
@@ -264,7 +277,13 @@ async def on_replace_hint(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
     # скоуп-ограниченный ввод: одна строка пожелания, не свободный чат (спека §3)
-    await _suggest_and_show(message, state, family, db_session, hint=message.text.strip())
+    try:
+        async with llm_slot(family.id):
+            await _suggest_and_show(
+                message, state, family, db_session, hint=message.text.strip()
+            )
+    except FamilyBusy:
+        await message.answer(BUSY_ALERT)
 
 
 async def _suggest_and_show(
@@ -283,7 +302,7 @@ async def _suggest_and_show(
         return
     # см. _generate_and_show: возвращаем клавиатуру, вытесненную ForceReply «пожелания».
     placeholder = await message.answer(
-        f"{emoji.WAIT} Подбираю варианты...", reply_markup=kb_main()
+        wait_text(emoji.WAIT, "Подбираю варианты", "replace"), reply_markup=kb_main()
     )
     try:
         options = await suggest_replacements(
@@ -374,11 +393,15 @@ async def on_regenerate(
     db_session: AsyncSession,
 ) -> None:
     # отдельная генерация в лимитах (спека §3); старый черновик удаляем
-    data = await state.get_data()
-    if data.get("menu_id"):
-        await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
-    await cb.answer()
-    await _generate_and_show(cb.message, state, family, family_member, db_session)
+    try:
+        async with llm_slot(family.id):
+            data = await state.get_data()
+            if data.get("menu_id"):
+                await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
+            await cb.answer()
+            await _generate_and_show(cb.message, state, family, family_member, db_session)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.callback_query(PlanFlow.draft, F.data == "plan:approve")
@@ -448,7 +471,9 @@ async def _do_approve(message: Message, state: FSMContext, family: Family,
 
 async def _build_shopping(message: Message, family: Family,
                           db_session: AsyncSession, menu: Menu) -> None:
-    placeholder = await message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    placeholder = await message.answer(
+        wait_text(emoji.SHOPPING, "Собираю список покупок", "shopping")
+    )
     try:
         items = await shopping_list.build_from_menu(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
@@ -496,8 +521,12 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
     if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
         await cb.answer("Список по этому меню уже составлен — смотрите /list", show_alert=True)
         return
-    await cb.answer()
-    await _build_shopping(cb.message, family, db_session, menu)
+    try:
+        async with llm_slot(family.id):
+            await cb.answer()
+            await _build_shopping(cb.message, family, db_session, menu)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.callback_query(F.data.startswith("plan:shoptext:"))
@@ -513,12 +542,25 @@ async def on_shoplist_text(
     if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
         items = await repositories.items_for_menu(db_session, menu_id=menu.id)
         await cb.answer()
-        await cb.message.answer(
-            f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}"
+        await answer_long(
+            cb.message,
+            f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}",
         )
         return
-    await cb.answer()
-    placeholder = await cb.message.answer(f"{emoji.SHOPPING} Собираю список покупок...")
+    try:
+        async with llm_slot(family.id):
+            await cb.answer()
+            await _build_shopping_text(cb.message, family, db_session, menu)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
+
+
+async def _build_shopping_text(
+    message: Message, family: Family, db_session: AsyncSession, menu: Menu
+) -> None:
+    placeholder = await message.answer(
+        wait_text(emoji.SHOPPING, "Собираю список покупок", "shopping")
+    )
     try:
         drafts = await shopping_list.generate_items(
             db_session, family_id=family.id, menu=menu, profile_md=family.profile_md or ""
@@ -536,9 +578,10 @@ async def on_shoplist_text(
             reply_markup=kb_retry(f"plan:shoptext:{menu.id}"),
         )
         return
-    await placeholder.edit_text(
+    await edit_long(
+        placeholder,
         f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(drafts)}\n\n"
-        "Нужен чек-лист — нажмите «В список /list» выше."
+        "Нужен чек-лист — нажмите «В список /list» выше.",
     )
 
 
