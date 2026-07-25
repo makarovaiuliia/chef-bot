@@ -17,6 +17,7 @@ from core.db import (
     Menu,
     MenuStatus,
     MessageRole,
+    OnboardingAttempt,
     ProteinKind,
     Recipe,
     ShoppingItem,
@@ -351,6 +352,47 @@ async def sum_llm_tokens_current_month(
     stmt = (
         select(func.coalesce(func.sum(LlmUsage.tokens_in + LlmUsage.tokens_out), 0))
         .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
+    )
+    return int((await session.execute(stmt)).scalar_one())
+
+
+def _day_boundary(now: datetime) -> datetime:
+    """Граница календарных суток UTC. Тот же эпсилон, что в _month_boundary."""
+    day_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
+    return day_start - timedelta(microseconds=1)
+
+
+async def log_onboarding_attempt(
+    session: AsyncSession, *, telegram_user_id: int
+) -> None:
+    session.add(OnboardingAttempt(telegram_user_id=telegram_user_id))
+    await session.flush()
+
+
+async def count_onboarding_attempts_today(
+    session: AsyncSession, *, telegram_user_id: int, now: datetime
+) -> int:
+    boundary = _day_boundary(now)
+    stmt = (
+        select(func.count())
+        .select_from(OnboardingAttempt)
+        .where(
+            OnboardingAttempt.telegram_user_id == telegram_user_id,
+            OnboardingAttempt.created_at > boundary,
+        )
+    )
+    return int((await session.execute(stmt)).scalar_one())
+
+
+async def count_onboarding_attempts_today_all(
+    session: AsyncSession, *, now: datetime
+) -> int:
+    """Все попытки онбординга за сутки — строка в сводке /admin."""
+    boundary = _day_boundary(now)
+    stmt = (
+        select(func.count())
+        .select_from(OnboardingAttempt)
+        .where(OnboardingAttempt.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
 

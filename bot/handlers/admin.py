@@ -34,6 +34,9 @@ async def cmd_admin(message: Message, db_session: AsyncSession) -> None:
     summary = await repositories.admin_month_summary(db_session, now=now)
     overview = await repositories.families_overview(db_session, now=now)
     requests = await repositories.count_subscription_requests(db_session)
+    onboarding_today = await repositories.count_onboarding_attempts_today_all(
+        db_session, now=now
+    )
 
     ops_lines = [f"  {op}: {cnt}" for op, cnt in sorted(summary["ops"].items())]
     usd = _usd(summary["tokens_in"], summary["tokens_out"])
@@ -41,6 +44,7 @@ async def cmd_admin(message: Message, db_session: AsyncSession) -> None:
         f"<b>Сводка за месяц ({now.strftime('%m.%Y')})</b>",
         f"Семей: {summary['families']}",
         f"Заявок на подписку: {requests}",
+        f"Онбординг сегодня: {onboarding_today} попыток",
         "Операции:",
         *(ops_lines or ["  нет"]),
         f"Токены: {summary['tokens_in']:,} in / {summary['tokens_out']:,} out",

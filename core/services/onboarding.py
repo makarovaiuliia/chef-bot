@@ -1,8 +1,13 @@
 """Онбординг: превращает ответы опроса в текст профиля семьи через LLM."""
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 
-from core.exceptions import LLMInvalidResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from config import get_settings
+from core import repositories
+from core.exceptions import LLMInvalidResponse, OnboardingLimitExceeded
 from core.llm import LLMClient, load_prompt, parse_json_response
 
 SLOT_LABELS = {"breakfast": "завтрак", "lunch": "обед", "dinner": "ужин"}
@@ -11,6 +16,34 @@ SLOT_LABELS = {"breakfast": "завтрак", "lunch": "обед", "dinner": "у
 @lru_cache
 def get_llm_client() -> LLMClient:
     return LLMClient()
+
+
+async def ensure_onboarding_attempt_allowed(
+    session: AsyncSession, *, telegram_user_id: int, now: datetime | None = None
+) -> None:
+    """Проверить суточный лимит и записать попытку.
+
+    Попытка пишется ДО вызова LLM: токены тратятся даже когда модель вернула
+    невалидный JSON (generate_profile внутри делает retry), иначе обход лимита
+    сводился бы к «вызывай так, чтобы падало».
+    """
+    now = now or datetime.now(UTC)
+    limit = get_settings().onboarding_daily_limit
+    used = await repositories.count_onboarding_attempts_today(
+        session, telegram_user_id=telegram_user_id, now=now
+    )
+    if used >= limit:
+        raise OnboardingLimitExceeded(limit)
+    await repositories.log_onboarding_attempt(
+        session, telegram_user_id=telegram_user_id
+    )
+
+
+def onboarding_denial_text(exc: OnboardingLimitExceeded) -> str:
+    return (
+        f"Сегодня уже {exc.limit} попыток составить профиль — это защита от "
+        "перерасхода. Попробуйте завтра."
+    )
 
 
 @dataclass

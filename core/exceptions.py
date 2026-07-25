@@ -67,3 +67,15 @@ class MonthlyCapExceeded(LimitExceeded):
     def __init__(self, subscribed: bool = False) -> None:
         self.subscribed = subscribed
         super().__init__()
+
+
+class OnboardingLimitExceeded(LimitExceeded):
+    """Суточный лимит генераций профиля на telegram_user_id исчерпан.
+
+    Отдельно от TrialLimitExceeded: у онбординга нет family_id, а значит нет и
+    подписки, которая могла бы лимит снять.
+    """
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(limit)

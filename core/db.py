@@ -224,6 +224,20 @@ class SubscriptionRequest(Base):
     created_at: Mapped[CreatedAt]
 
 
+class OnboardingAttempt(Base):
+    """Попытка сгенерировать профиль в онбординге — по строке на вызов LLM.
+
+    Семьи на этот момент еще нет, поэтому триал-лимиты (они по family_id) не
+    применимы: считаем по telegram_user_id за календарные сутки UTC.
+    """
+
+    __tablename__ = "onboarding_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    created_at: Mapped[CreatedAt]
+
+
 class ClaudeConversation(Base):
     __tablename__ = "claude_conversations"
 

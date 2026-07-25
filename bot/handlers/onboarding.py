@@ -4,6 +4,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ForceReply, Message
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.formatting import md_to_telegram_html
 from bot.fsm import Onboarding
@@ -16,10 +17,15 @@ from bot.keyboards import (
     kb_skip,
 )
 from core import emoji
-from core.exceptions import LLMError
+from core.exceptions import LLMError, OnboardingLimitExceeded
 from core.repositories import log_llm_usage
 from core.services.family_service import create_family
-from core.services.onboarding import OnboardingAnswers, generate_profile
+from core.services.onboarding import (
+    OnboardingAnswers,
+    ensure_onboarding_attempt_allowed,
+    generate_profile,
+    onboarding_denial_text,
+)
 
 router = Router()
 
@@ -176,15 +182,20 @@ async def on_extra_skip(cb: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.message(Onboarding.city, F.text)
-async def on_city_text(message: Message, state: FSMContext) -> None:
+async def on_city_text(
+    message: Message, state: FSMContext, db_session: AsyncSession
+) -> None:
     await state.update_data(city=message.text.strip())
-    await _generate_and_show(message, state)
+    await _generate_and_show(message, state, db_session, message.from_user.id)
 
 
 @router.callback_query(Onboarding.city, F.data == "onb:city:skip")
-async def on_city_skip(cb: CallbackQuery, state: FSMContext) -> None:
+async def on_city_skip(
+    cb: CallbackQuery, state: FSMContext, db_session: AsyncSession
+) -> None:
     await state.update_data(city=None)
-    await _generate_and_show(cb.message, state)
+    # cb.message.from_user — это бот; автор апдейта берется из cb.from_user.
+    await _generate_and_show(cb.message, state, db_session, cb.from_user.id)
     await cb.answer()
 
 
@@ -192,8 +203,17 @@ def _labels(keys: list[str], options: dict[str, str]) -> list[str]:
     return [options.get(k, k) for k in keys]
 
 
-async def _generate_and_show(message: Message, state: FSMContext) -> None:
+async def _generate_and_show(
+    message: Message, state: FSMContext, db_session: AsyncSession, user_id: int
+) -> None:
     from core.services.onboarding import get_llm_client  # локальный импорт для моков
+
+    try:
+        await ensure_onboarding_attempt_allowed(db_session, telegram_user_id=user_id)
+    except OnboardingLimitExceeded as e:
+        await state.clear()
+        await message.answer(onboarding_denial_text(e))
+        return
 
     data = await state.get_data()
     answers = OnboardingAnswers(

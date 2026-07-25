@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     trial_recipe_limit: int = 15
     trial_shopping_limit: int = 10
     monthly_token_cap_per_family: int = 500_000
+    # генерация профиля идет ДО создания семьи, поэтому вне триал-лимитов:
+    # считаем попытки по telegram_user_id за сутки, иначе это бесплатный
+    # LLM-вызов на аккаунт, повторяемый бесконечно
+    onboarding_daily_limit: int = 5
     # месячный потолок токенов семьи с активной подпиской (выдана /grant)
     sub_monthly_token_cap_per_family: int = 600_000
 
