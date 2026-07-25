@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -354,6 +354,43 @@ async def sum_llm_tokens_current_month(
         .where(LlmUsage.family_id == family_id, LlmUsage.created_at > boundary)
     )
     return int((await session.execute(stmt)).scalar_one())
+
+
+async def claim_digest_slot(
+    session: AsyncSession, *, family_id: int, local_date: DateType
+) -> bool:
+    """Взять право на рассылку семье за local_date. True — право получено.
+
+    Атомарный UPDATE ... WHERE: и Postgres, и SQLite выполняют его как одну
+    операцию, поэтому две реплики (или старый и новый контейнер на редеплое)
+    не могут обе получить True. Заменяет прежнюю дедупликацию в памяти
+    процесса, из-за которой рестарт в тот же час давал повторный дайджест.
+    """
+    stmt = (
+        update(Family)
+        .where(
+            Family.id == family_id,
+            or_(Family.last_digest_on.is_(None), Family.last_digest_on < local_date),
+        )
+        .values(last_digest_on=local_date)
+    )
+    claimed = (await session.execute(stmt)).rowcount == 1
+    await session.commit()
+    return claimed
+
+
+async def release_digest_slot(
+    session: AsyncSession, *, family_id: int, previous: DateType | None
+) -> None:
+    """Вернуть заявку, если рассылка упала — ретрай на следующем тике.
+
+    Сохраняет прежнее поведение планировщика: при ошибке обработки семьи
+    отправка повторяется в пределах того же часа.
+    """
+    await session.execute(
+        update(Family).where(Family.id == family_id).values(last_digest_on=previous)
+    )
+    await session.commit()
 
 
 def _day_boundary(now: datetime) -> datetime:

@@ -2,9 +2,10 @@
 
 Тик каждые 15 минут: для каждой семьи, чей локальный час совпал с digest_hour
 и которой сегодня еще не слали, отправляется утренний дайджест (если включен).
-Дедупликация — in-memory (после рестарта в тот же час возможен повтор — MVP).
-При ошибке обработки семьи last_sent не проставляется — ретрай на следующем
-тике в пределах того же часа.
+Дедупликация — атомарная заявка в БД (families.last_digest_on): рестарт в тот
+же час или вторая реплика больше не дают повторный дайджест.
+При ошибке обработки семьи заявка возвращается — ретрай на следующем тике в
+пределах того же часа.
 """
 import asyncio
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from bot.formatting import md_to_telegram_html
 from bot.keyboards import kb_plan_reminder
 from config import get_settings
+from core import repositories
 from core.db import Family
 from core.repositories import count_llm_operations, get_family_members
 from core.services import digest, reminders
@@ -35,14 +37,17 @@ def _family_tz(family) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def families_due(
-    families, *, now: datetime, last_sent: dict[int, DateType]
-) -> list[Family]:
-    """Семьи, у которых сейчас локальный digest_hour и сегодня еще не слали."""
+def families_due(families, *, now: datetime) -> list[Family]:
+    """Семьи, у которых сейчас локальный digest_hour и сегодня еще не слали.
+
+    Отбор по колонке last_digest_on — грубый фильтр, чтобы не дергать БД на
+    каждую семью. Право на отправку все равно берется атомарной заявкой в
+    _tick_family: между этой проверкой и заявкой могла вклиниться другая реплика.
+    """
     due = []
     for f in families:
         local = now.astimezone(_family_tz(f))
-        if local.hour == f.digest_hour and last_sent.get(f.id) != local.date():
+        if local.hour == f.digest_hour and f.last_digest_on != local.date():
             due.append(f)
     return due
 
@@ -99,24 +104,36 @@ async def _process_due_family(
 
 
 async def _tick_family(
-    bot: Bot,
-    sessionmaker: async_sessionmaker,
-    family: Family,
-    now: datetime,
-    last_sent: dict[int, DateType],
+    bot: Bot, sessionmaker: async_sessionmaker, family: Family, now: datetime
 ) -> None:
-    """Process one due family; mark last_sent only on success (retry on failure)."""
+    """Обработать одну семью, взяв право на отправку атомарной заявкой.
+
+    Заявка берется ДО рассылки — иначе вторая реплика успеет отправить свой
+    дайджест, пока мы шлем свой. При ошибке заявка возвращается, чтобы
+    отправка повторилась на следующем тике в пределах того же часа.
+    """
     local_today = now.astimezone(_family_tz(family)).date()
+    previous = family.last_digest_on
+    async with sessionmaker() as session:
+        claimed = await repositories.claim_digest_slot(
+            session, family_id=family.id, local_date=local_today
+        )
+    if not claimed:
+        logger.debug("scheduler: family {} already claimed for {}", family.id, local_today)
+        return
+    family.last_digest_on = local_today
     try:
         await _process_due_family(bot, sessionmaker, family, local_today)
     except Exception:
         logger.exception("scheduler: family {} failed", family.id)
-        return
-    last_sent[family.id] = local_today
+        family.last_digest_on = previous
+        async with sessionmaker() as session:
+            await repositories.release_digest_slot(
+                session, family_id=family.id, previous=previous
+            )
 
 
 async def _scheduler_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
-    last_sent: dict[int, DateType] = {}
     while True:
         await asyncio.sleep(TICK_SECONDS)
         now = datetime.now(UTC)
@@ -126,8 +143,8 @@ async def _scheduler_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
         except Exception:
             logger.exception("scheduler: failed to load families")
             continue
-        for family in families_due(families, now=now, last_sent=last_sent):
-            await _tick_family(bot, sessionmaker, family, now, last_sent)
+        for family in families_due(families, now=now):
+            await _tick_family(bot, sessionmaker, family, now)
 
 
 def start_scheduler(bot: Bot, sessionmaker: async_sessionmaker) -> list[asyncio.Task]:

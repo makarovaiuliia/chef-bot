@@ -91,6 +91,9 @@ class Family(Base):
     # подписка активна по эту дату включительно; выставляет суперадмин /grant
     # после ручной оплаты (None — подписки нет, работают триал-лимиты)
     sub_until: Mapped[DateType | None] = mapped_column(Date)
+    # локальная дата последней рассылки семье: заявка на отправку берется
+    # атомарным UPDATE, поэтому рестарт или вторая реплика не дают дубля
+    last_digest_on: Mapped[DateType | None] = mapped_column(Date)
     plan_slots: Mapped[list[str]] = mapped_column(
         JSON, default=lambda: ["lunch", "dinner"], nullable=False
     )
