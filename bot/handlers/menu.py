@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import wait_text
+from bot.inflight import BUSY_ALERT, llm_slot
 from bot.keyboards import BTN_TODAY, kb_meal_recipes, kb_want_subscription
 from bot.replies import answer_long, edit_long
 from core import emoji, repositories
 from core.db import Family, Meal
-from core.exceptions import LimitExceeded, LLMError, MealNotFound
+from core.exceptions import FamilyBusy, LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_meal_lines
 from core.ru_format import format_date_short
 from core.services import limits, recipe_service
@@ -75,14 +76,27 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
     if meal is None:
         await cb.answer("Блюдо не найдено (меню обновилось?)", show_alert=True)
         return
-    await cb.answer()
     # Рецепт кэшируется: если он уже сохранен, обещать «до 30 секунд» нечестно —
-    # ответ придет мгновенно.
+    # ответ придет мгновенно, и слот занимать незачем.
     cached = await repositories.get_recipe(db_session, meal.id)
-    placeholder = await cb.message.answer(
-        f"{emoji.WAIT} Открываю рецепт..."
-        if cached is not None
-        else wait_text(emoji.WAIT, "Готовлю рецепт", "recipe")
+    if cached is not None:
+        await cb.answer()
+        placeholder = await cb.message.answer(f"{emoji.WAIT} Открываю рецепт...")
+        await edit_long(placeholder, cached.content_md)
+        return
+    try:
+        async with llm_slot(family.id):
+            await cb.answer()
+            await _generate_recipe(cb.message, meal, family, db_session)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
+
+
+async def _generate_recipe(
+    message: Message, meal: Meal, family: Family, db_session: AsyncSession
+) -> None:
+    placeholder = await message.answer(
+        wait_text(emoji.WAIT, "Готовлю рецепт", "recipe")
     )
     try:
         recipe = await recipe_service.get_recipe(
@@ -93,11 +107,11 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
         await placeholder.edit_text(denial_text(e), reply_markup=markup)
         return
     except LLMError:
-        logger.exception("recipe generation failed meal_id={}", meal_id)
+        logger.exception("recipe generation failed meal_id={}", meal.id)
         await placeholder.edit_text("Не получилось приготовить рецепт. Нажмите кнопку еще раз.")
         return
     except MealNotFound:
-        logger.warning("meal disappeared during recipe generation meal_id={}", meal_id)
+        logger.warning("meal disappeared during recipe generation meal_id={}", meal.id)
         await placeholder.edit_text("Блюдо не найдено — меню обновилось. Откройте /menu заново.")
         return
     # content_md уже в Telegram HTML; рецепт от LLM легко перерастает лимит сообщения

@@ -53,6 +53,10 @@ class CannotRemoveAdmin(FamilyError):
     админ убирает кнопкой «Покинуть семью»."""
 
 
+class FamilyBusy(ChefBotError):
+    """У семьи уже идет LLM-операция: защита от двойного тапа по кнопке."""
+
+
 class LimitExceeded(ChefBotError):
     """База: лимит триала или месячный токен-потолок исчерпан."""
 

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.filters import HasFamily, IsAdmin
 from bot.formatting import wait_text
 from bot.fsm import PlanFlow
+from bot.inflight import BUSY_ALERT, llm_slot
 from bot.keyboards import (
     BTN_ADD,
     BTN_FAMILY,
@@ -32,7 +33,7 @@ from bot.keyboards import (
 from bot.replies import answer_long, edit_long
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
-from core.exceptions import LimitExceeded, LLMError, MealNotFound
+from core.exceptions import FamilyBusy, LimitExceeded, LLMError, MealNotFound
 from core.meal_format import format_dish_with_sides, format_meal_lines, slot_label
 from core.ru_format import format_date_short
 from core.services import limits, menu_planner, shopping_list
@@ -137,9 +138,13 @@ async def on_duration(
     if days not in {3, 5, 7}:
         await cb.answer("Недоступная длительность", show_alert=True)
         return
-    await state.update_data(days=days)
-    await cb.answer()
-    await _generate_and_show(cb.message, state, family, family_member, db_session)
+    try:
+        async with llm_slot(family.id):
+            await state.update_data(days=days)
+            await cb.answer()
+            await _generate_and_show(cb.message, state, family, family_member, db_session)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 def _format_draft(menu: Menu) -> str:
@@ -253,9 +258,13 @@ async def on_pick_meal(
     cb: CallbackQuery, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
     meal_id = int(cb.data.split(":")[-1])
-    await state.update_data(replace_meal_id=meal_id)
-    await cb.answer()
-    await _suggest_and_show(cb.message, state, family, db_session, hint=None)
+    try:
+        async with llm_slot(family.id):
+            await state.update_data(replace_meal_id=meal_id)
+            await cb.answer()
+            await _suggest_and_show(cb.message, state, family, db_session, hint=None)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.message(
@@ -268,7 +277,13 @@ async def on_replace_hint(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
     # скоуп-ограниченный ввод: одна строка пожелания, не свободный чат (спека §3)
-    await _suggest_and_show(message, state, family, db_session, hint=message.text.strip())
+    try:
+        async with llm_slot(family.id):
+            await _suggest_and_show(
+                message, state, family, db_session, hint=message.text.strip()
+            )
+    except FamilyBusy:
+        await message.answer(BUSY_ALERT)
 
 
 async def _suggest_and_show(
@@ -378,11 +393,15 @@ async def on_regenerate(
     db_session: AsyncSession,
 ) -> None:
     # отдельная генерация в лимитах (спека §3); старый черновик удаляем
-    data = await state.get_data()
-    if data.get("menu_id"):
-        await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
-    await cb.answer()
-    await _generate_and_show(cb.message, state, family, family_member, db_session)
+    try:
+        async with llm_slot(family.id):
+            data = await state.get_data()
+            if data.get("menu_id"):
+                await menu_planner.delete_draft(db_session, menu_id=data["menu_id"])
+            await cb.answer()
+            await _generate_and_show(cb.message, state, family, family_member, db_session)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.callback_query(PlanFlow.draft, F.data == "plan:approve")
@@ -502,8 +521,12 @@ async def on_build_shoplist(cb: CallbackQuery, family: Family,
     if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
         await cb.answer("Список по этому меню уже составлен — смотрите /list", show_alert=True)
         return
-    await cb.answer()
-    await _build_shopping(cb.message, family, db_session, menu)
+    try:
+        async with llm_slot(family.id):
+            await cb.answer()
+            await _build_shopping(cb.message, family, db_session, menu)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
 
 
 @router.callback_query(F.data.startswith("plan:shoptext:"))
@@ -524,8 +547,18 @@ async def on_shoplist_text(
             f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}",
         )
         return
-    await cb.answer()
-    placeholder = await cb.message.answer(
+    try:
+        async with llm_slot(family.id):
+            await cb.answer()
+            await _build_shopping_text(cb.message, family, db_session, menu)
+    except FamilyBusy:
+        await cb.answer(BUSY_ALERT, show_alert=True)
+
+
+async def _build_shopping_text(
+    message: Message, family: Family, db_session: AsyncSession, menu: Menu
+) -> None:
+    placeholder = await message.answer(
         wait_text(emoji.SHOPPING, "Собираю список покупок", "shopping")
     )
     try:
