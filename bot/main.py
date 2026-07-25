@@ -4,6 +4,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.base import BaseStorage
 from aiogram.types import BotCommand
 from loguru import logger
 
@@ -22,6 +23,7 @@ from bot.handlers import start as start_handler
 from bot.handlers import subscription as subscription_handler
 from bot.middlewares import FamilyResolverMiddleware
 from bot.scheduler import start_scheduler
+from bot.storage import build_storage
 from config import get_settings
 from core.db import get_sessionmaker
 
@@ -46,9 +48,12 @@ def configure_logging(level: str) -> None:
     logger.add(sys.stderr, level=level)
 
 
-def create_dispatcher() -> Dispatcher:
-    """Собирает Dispatcher с middleware и роутерами (без сайд-эффектов Telegram API)."""
-    dp = Dispatcher()
+def create_dispatcher(storage: BaseStorage | None = None) -> Dispatcher:
+    """Собирает Dispatcher с middleware и роутерами (без сайд-эффектов Telegram API).
+
+    storage=None — aiogram подставит MemoryStorage: так работают тесты.
+    """
+    dp = Dispatcher(storage=storage)
 
     # ВАЖНО: именно outer — фильтры (HasFamily/IsAdmin) читают family из data,
     # а inner-middleware выполняется уже ПОСЛЕ проверки фильтров.
@@ -82,7 +87,7 @@ async def main() -> None:
         token=settings.bot_token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = create_dispatcher()
+    dp = create_dispatcher(build_storage())
 
     await bot.set_my_commands(bot_commands())
     scheduler_tasks = start_scheduler(bot, get_sessionmaker())

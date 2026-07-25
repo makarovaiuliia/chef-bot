@@ -356,6 +356,26 @@ async def sum_llm_tokens_current_month(
     return int((await session.execute(stmt)).scalar_one())
 
 
+async def delete_stale_drafts(
+    session: AsyncSession, *, older_than: datetime
+) -> int:
+    """Удалить неутвержденные черновики меню старше older_than. Вернуть сколько.
+
+    Черновик осиротевает, когда флоу /plan заброшен: юзер не вернулся или его
+    состояние потерялось. Без чистки такие строки лежат в БД навсегда — с
+    персистентным FSM тоже, потому что забросить флоу можно и без рестарта.
+    Каскад Menu.meals уносит блюда и рецепты.
+    """
+    stmt = select(Menu).where(
+        Menu.status == MenuStatus.draft, Menu.created_at < older_than
+    )
+    stale = list((await session.execute(stmt)).scalars().all())
+    for menu in stale:
+        await session.delete(menu)
+    await session.flush()
+    return len(stale)
+
+
 async def claim_digest_slot(
     session: AsyncSession, *, family_id: int, local_date: DateType
 ) -> bool:

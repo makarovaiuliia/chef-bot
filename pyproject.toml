@@ -18,6 +18,7 @@ dependencies = [
     "loguru>=0.7",
     "python-dotenv>=1.0",
     "asyncpg>=0.29",
+    "redis>=5",
 ]
 
 [project.optional-dependencies]

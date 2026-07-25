@@ -8,7 +8,7 @@
 пределах того же часа.
 """
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from datetime import date as DateType
 from zoneinfo import ZoneInfo
 
@@ -28,6 +28,7 @@ from core.services.family_service import get_admins
 from core.services.limits import subscription_active
 
 TICK_SECONDS = 900  # 15 минут
+CLEANUP_TICK_SECONDS = 6 * 3600  # чистка черновиков — четыре раза в сутки
 
 
 def _family_tz(family) -> ZoneInfo:
@@ -176,9 +177,34 @@ async def _scheduler_loop(bot: Bot, sessionmaker: async_sessionmaker) -> None:
             await _tick_family(bot, sessionmaker, family, now)
 
 
+async def _cleanup_loop(sessionmaker: async_sessionmaker) -> None:
+    """Периодически убирать осиротевшие черновики меню.
+
+    Срок берем из fsm_ttl_hours: к этому моменту состояние диалога в любом
+    случае истекло, значит утвердить черновик уже невозможно.
+    """
+    while True:
+        await asyncio.sleep(CLEANUP_TICK_SECONDS)
+        cutoff = datetime.now(UTC) - timedelta(hours=get_settings().fsm_ttl_hours)
+        try:
+            async with sessionmaker() as session:
+                removed = await repositories.delete_stale_drafts(
+                    session, older_than=cutoff
+                )
+                await session.commit()
+        except Exception:
+            logger.exception("scheduler: draft cleanup failed")
+            continue
+        if removed:
+            logger.info("scheduler: удалено осиротевших черновиков: {}", removed)
+
+
 def start_scheduler(bot: Bot, sessionmaker: async_sessionmaker) -> list[asyncio.Task]:
     """Spawn background tasks. Caller is responsible for cancelling them at shutdown."""
-    return [asyncio.create_task(_scheduler_loop(bot, sessionmaker), name="digest")]
+    return [
+        asyncio.create_task(_scheduler_loop(bot, sessionmaker), name="digest"),
+        asyncio.create_task(_cleanup_loop(sessionmaker), name="cleanup"),
+    ]
 
 
-__all__ = ["start_scheduler", "families_due", "TICK_SECONDS"]
+__all__ = ["start_scheduler", "families_due", "TICK_SECONDS", "CLEANUP_TICK_SECONDS"]
