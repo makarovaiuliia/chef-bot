@@ -8,7 +8,9 @@ from core import repositories
 from core.db import Family, FamilyMember, MemberRole
 from core.exceptions import (
     AlreadyInFamily,
+    CannotRemoveAdmin,
     InvalidInviteCode,
+    LastAdminCannotLeave,
     LLMInvalidResponse,
     MemberNotInFamily,
 )
@@ -133,6 +135,53 @@ async def update_digest_settings(
         family.digest_hour = hour
     await session.flush()
     return family
+
+
+async def leave_family(
+    session: AsyncSession, *, family: Family, member: FamilyMember
+) -> None:
+    """Самовыход из семьи.
+
+    Единственный админ уйти не может, пока в семье есть кто-то еще
+    (LastAdminCannotLeave) — сначала пусть назначит второго админа в /family.
+    Если ушел последний участник, обнуляем invite_code: по утекшей ссылке
+    нельзя попасть в семью без админов. Данные семьи (меню, покупки) остаются —
+    спека §7, строки menus не удаляются никогда.
+    """
+    members = await repositories.get_family_members(session, family.id)
+    others = [m for m in members if m.id != member.id]
+    if others and is_admin(member):
+        remaining_admins = [m for m in others if is_admin(m)]
+        if not remaining_admins:
+            raise LastAdminCannotLeave
+    await session.delete(member)
+    if not others:
+        family.invite_code = None
+    await session.flush()
+
+
+async def remove_member(
+    session: AsyncSession, *, family_id: int, actor: FamilyMember, member_id: int
+) -> FamilyMember:
+    """Удаление участника администратором. Возвращает удаленного участника.
+
+    Только role=member: другого админа удалять нельзя (CannotRemoveAdmin), себя
+    тоже — для этого есть leave_family.
+    """
+    member = (
+        await session.execute(
+            select(FamilyMember).where(
+                FamilyMember.id == member_id, FamilyMember.family_id == family_id
+            )
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        raise MemberNotInFamily
+    if member.id == actor.id or is_admin(member):
+        raise CannotRemoveAdmin
+    await session.delete(member)
+    await session.flush()
+    return member
 
 
 async def grant_admin(

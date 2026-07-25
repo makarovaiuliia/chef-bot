@@ -7,3 +7,19 @@ MENU_MAX_DAYS = 14
 # Ориентир цены Sonnet для сводки /admin (не биллинг): $ за миллион токенов
 PRICE_USD_PER_MTOK_IN = 3.0
 PRICE_USD_PER_MTOK_OUT = 15.0
+
+# Сколько ждать ответа LLM — показываем юзеру в плейсхолдере, чтобы он не думал,
+# что бот повис. Ключи — имена операций из llm_usage.operation (один словарь на
+# оба назначения). Оценки консервативные: лучше прийти раньше обещанного.
+LLM_WAIT_HINTS = {
+    "menu_gen": "до минуты",
+    "shopping": "до 40 секунд",
+    "profile": "до 40 секунд",
+    "recipe": "до 30 секунд",
+    "replace": "до 20 секунд",
+    "conversation": "до 20 секунд",
+    "tz_detect": "пару секунд",
+}
+
+# Лимит длины сообщения Telegram (sendMessage/editMessageText).
+TELEGRAM_MESSAGE_LIMIT = 4096

@@ -9,6 +9,9 @@ Existing Telegram HTML tags (e.g. the recipe text, which is already HTML) are
 preserved untouched, so the function is safe to apply to any reply.
 """
 import re
+from collections.abc import Callable
+
+from core.constants import LLM_WAIT_HINTS, TELEGRAM_MESSAGE_LIMIT
 
 # Tags Telegram renders; we keep these verbatim instead of escaping them.
 _ALLOWED_TAGS = ("b", "strong", "i", "em", "u", "s", "code", "pre", "a", "blockquote")
@@ -85,3 +88,68 @@ def _convert_inline(text: str) -> str:
     text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<i>\1</i>", text)
     text = re.sub(r"(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)", r"<i>\1</i>", text)
     return text
+
+
+def wait_text(icon: str, label: str, operation: str) -> str:
+    """Плейсхолдер ожидания LLM с оценкой времени: «⏳ Готовлю меню... (до минуты)».
+
+    Оценка берется из LLM_WAIT_HINTS по имени операции (те же имена, что в
+    llm_usage.operation). Незнакомая операция дает плейсхолдер без оценки —
+    юзеру важнее увидеть ответ, чем упасть на отсутствующем ключе.
+    """
+    hint = LLM_WAIT_HINTS.get(operation)
+    return f"{icon} {label}... ({hint})" if hint else f"{icon} {label}..."
+
+
+def split_for_telegram(
+    text: str, limit: int = TELEGRAM_MESSAGE_LIMIT
+) -> list[str]:
+    """Резать текст на сообщения, влезающие в лимит Telegram.
+
+    Границы выбираются по убыванию предпочтения: пустая строка (абзац), затем
+    одиночный перевод строки, и только для строки длиннее лимита — жесткая
+    нарезка. Допущение: HTML-теги не пересекают перевод строки (верно для всех
+    наших форматтеров), иначе кусок мог бы получить незакрытый тег.
+
+    Всегда возвращает минимум один элемент, чтобы вызывающий код не проверял len.
+    """
+    if len(text) <= limit:
+        return [text]
+    return _pack(text.split("\n\n"), "\n\n", limit, _split_by_lines)
+
+
+def _split_by_lines(paragraph: str, limit: int) -> list[str]:
+    return _pack(paragraph.split("\n"), "\n", limit, _split_hard)
+
+
+def _split_hard(line: str, limit: int) -> list[str]:
+    return [line[i : i + limit] for i in range(0, len(line), limit)]
+
+
+def _pack(
+    pieces: list[str],
+    sep: str,
+    limit: int,
+    split_oversized: Callable[[str, int], list[str]],
+) -> list[str]:
+    """Жадно склеивать куски через sep, пока влезают; крупные — через fallback."""
+    out: list[str] = []
+    current = ""
+    for piece in pieces:
+        candidate = f"{current}{sep}{piece}" if current else piece
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            out.append(current)
+            current = ""
+        if len(piece) <= limit:
+            current = piece
+            continue
+        # Кусок не влезает сам по себе — дробим и продолжаем набор с остатка.
+        parts = split_oversized(piece, limit)
+        out.extend(parts[:-1])
+        current = parts[-1]
+    if current:
+        out.append(current)
+    return out
