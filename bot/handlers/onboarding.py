@@ -206,7 +206,7 @@ def _labels(keys: list[str], options: dict[str, str]) -> list[str]:
 async def _generate_and_show(
     message: Message, state: FSMContext, db_session: AsyncSession, user_id: int
 ) -> None:
-    from core.services.onboarding import get_llm_client  # локальный импорт для моков
+    from core.llm import get_llm_client  # локальный импорт: тесты подменяют фабрику
 
     try:
         await ensure_onboarding_attempt_allowed(db_session, telegram_user_id=user_id)

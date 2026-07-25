@@ -1,4 +1,3 @@
-from functools import lru_cache
 
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,13 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core import repositories
 from core.db import Meal, ProteinKind
 from core.exceptions import LLMInvalidResponse, MealNotFound
-from core.llm import LLMClient, build_system_blocks, parse_json_response
+from core.llm import build_system_blocks, get_llm_client, parse_json_response
 from core.services import limits
-
-
-@lru_cache
-def get_llm_client() -> LLMClient:
-    return LLMClient()
 
 
 class ReplacementOption(BaseModel):

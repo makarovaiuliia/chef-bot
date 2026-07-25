@@ -29,7 +29,7 @@ async def test_generate_and_show_handles_llm_error(monkeypatch):
 
     monkeypatch.setattr(onb, "generate_profile", boom)
     monkeypatch.setattr(onb, "ensure_onboarding_attempt_allowed", allow)
-    monkeypatch.setattr("core.services.onboarding.get_llm_client", lambda: object())
+    monkeypatch.setattr("core.llm.get_llm_client", lambda: object())
 
     message = AsyncMock()
     state = AsyncMock()

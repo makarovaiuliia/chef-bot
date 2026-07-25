@@ -1,7 +1,6 @@
 """Онбординг: превращает ответы опроса в текст профиля семьи через LLM."""
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,10 +11,6 @@ from core.llm import LLMClient, load_prompt, parse_json_response
 
 SLOT_LABELS = {"breakfast": "завтрак", "lunch": "обед", "dinner": "ужин"}
 
-
-@lru_cache
-def get_llm_client() -> LLMClient:
-    return LLMClient()
 
 
 async def ensure_onboarding_attempt_allowed(

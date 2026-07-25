@@ -1,5 +1,4 @@
 from datetime import date
-from functools import lru_cache
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,14 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core import repositories, tools
 from core.db import MessageRole
 from core.exceptions import LLMError
-from core.llm import LLMClient, build_system_blocks
+from core.llm import build_system_blocks, get_llm_client
 
 MAX_TOOL_ITERATIONS = 5
 
-
-@lru_cache
-def get_llm_client() -> LLMClient:
-    return LLMClient()
 
 
 async def handle_message(

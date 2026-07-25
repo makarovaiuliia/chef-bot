@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +31,13 @@ class LLMResponse:
 
 class LLMClient:
     def __init__(self) -> None:
+        settings = get_settings()
         self._client = AsyncAnthropic(
-            api_key=get_settings().anthropic_api_key.get_secret_value()
+            api_key=settings.anthropic_api_key.get_secret_value(),
+            timeout=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
         )
-        self._model = get_settings().claude_model
+        self._model = settings.claude_model
 
     async def chat(
         self,
@@ -76,6 +80,18 @@ class LLMClient:
             tokens_out=resp.usage.output_tokens,
             raw_message=resp,
         )
+
+
+@lru_cache
+def get_llm_client() -> LLMClient:
+    """Единственный клиент на процесс.
+
+    Раньше фабрика дублировалась в каждом сервисе, и каждая держала свой
+    httpx-пул: до семи пулов на процесс вместо одного, без переиспользования
+    соединений между операциями. Сервисы по-прежнему импортируют имя к себе в
+    модуль, чтобы его можно было подменять в тестах.
+    """
+    return LLMClient()
 
 
 def build_system_blocks(task_prompt_name: str, *, profile_md: str) -> list[dict]:

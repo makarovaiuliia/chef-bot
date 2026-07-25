@@ -14,9 +14,8 @@ from core.exceptions import (
     LLMInvalidResponse,
     MemberNotInFamily,
 )
-from core.llm import LLMClient, load_prompt, parse_json_response
+from core.llm import LLMClient, get_llm_client, load_prompt, parse_json_response
 from core.services import limits
-from core.services.onboarding import get_llm_client
 
 
 def _new_invite_code() -> str:

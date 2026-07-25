@@ -1,7 +1,6 @@
 """Генерация меню в боте: черновик по профилю семьи → правки → утверждение."""
 from datetime import date as DateType
 from datetime import datetime, timedelta
-from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
@@ -11,15 +10,10 @@ from core import repositories
 from core.constants import MENU_MAX_DAYS
 from core.db import Family, MealSlot, Menu, MenuStatus
 from core.exceptions import LLMInvalidResponse, MenuTooLong
-from core.llm import LLMClient, build_system_blocks, parse_json_response
+from core.llm import LLMClient, build_system_blocks, get_llm_client, parse_json_response
 from core.meal_format import slot_label
 from core.models import MealDTO
 from core.services import limits
-
-
-@lru_cache
-def get_llm_client() -> LLMClient:
-    return LLMClient()
 
 
 class _MenuSchema(BaseModel):

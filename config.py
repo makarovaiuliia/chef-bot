@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     claude_model: str = "claude-sonnet-4-6"
     conversation_enabled: bool = False
+    # Дефолты SDK — таймаут 10 минут и 2 ретрая, то есть до ~30 минут на один
+    # зависший вызов. Все это время открыта сессия БД (мидлварь держит ее на
+    # весь хендлер), на Postgres это соединение в idle-in-transaction.
+    # Таймаут ретраится, поэтому потолок по времени = timeout * (retries + 1).
+    llm_timeout_seconds: float = 90.0
+    llm_max_retries: int = 1
 
     # спека §6: разовый (пожизненный) триал на семью + месячный anti-abuse потолок
     trial_menu_gen_limit: int = 4
