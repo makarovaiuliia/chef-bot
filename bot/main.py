@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 from loguru import logger
 
+from bot.errors import on_error
 from bot.handlers import admin as admin_handler
 from bot.handlers import family as family_handler
 from bot.handlers import freetext as freetext_handler
@@ -66,6 +67,10 @@ def create_dispatcher() -> Dispatcher:
     dp.include_router(load_handler.router)
     dp.include_router(freetext_handler.router)  # HasFamily: catch-all для «семейных»
     dp.include_router(onboarding_handler.router)  # FSM + fallback для юзеров без семьи — ПОСЛЕДНИЙ
+
+    # Последняя линия: без нее необработанное исключение оставляет юзера перед
+    # плейсхолдером навсегда, а оператора — без сигнала о баге.
+    dp.errors.register(on_error)
     return dp
 
 

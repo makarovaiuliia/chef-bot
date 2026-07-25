@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.keyboards import BTN_TODAY, kb_meal_recipes, kb_want_subscription
+from bot.replies import answer_long, edit_long
 from core import emoji, repositories
 from core.db import Family, Meal
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
@@ -50,7 +51,7 @@ async def cmd_menu(
     if not meals:
         await message.answer(_empty_menu_text())
         return
-    await message.answer(_format_future_meals(meals, today))
+    await answer_long(message, _format_future_meals(meals, today))
 
 
 @router.message(Command("today"))
@@ -91,4 +92,5 @@ async def cb_recipe(cb: CallbackQuery, family: Family, db_session: AsyncSession)
         logger.warning("meal disappeared during recipe generation meal_id={}", meal_id)
         await placeholder.edit_text("Блюдо не найдено — меню обновилось. Откройте /menu заново.")
         return
-    await placeholder.edit_text(recipe.content_md)  # content_md уже в Telegram HTML
+    # content_md уже в Telegram HTML; рецепт от LLM легко перерастает лимит сообщения
+    await edit_long(placeholder, recipe.content_md)

@@ -28,6 +28,7 @@ from bot.keyboards import (
     kb_shoplist_offer,
     kb_want_subscription,
 )
+from bot.replies import answer_long, edit_long
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
 from core.exceptions import LimitExceeded, LLMError, MealNotFound
@@ -513,8 +514,9 @@ async def on_shoplist_text(
     if await shopping_list.has_list_for_menu(db_session, menu_id=menu.id):
         items = await repositories.items_for_menu(db_session, menu_id=menu.id)
         await cb.answer()
-        await cb.message.answer(
-            f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}"
+        await answer_long(
+            cb.message,
+            f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(items)}",
         )
         return
     await cb.answer()
@@ -536,9 +538,10 @@ async def on_shoplist_text(
             reply_markup=kb_retry(f"plan:shoptext:{menu.id}"),
         )
         return
-    await placeholder.edit_text(
+    await edit_long(
+        placeholder,
         f"{emoji.SHOPPING} Список покупок:\n{shopping_list.format_items_text(drafts)}\n\n"
-        "Нужен чек-лист — нажмите «В список /list» выше."
+        "Нужен чек-лист — нажмите «В список /list» выше.",
     )
 
 

@@ -12,6 +12,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import IsSuperadmin
+from bot.replies import answer_long
 from core import repositories
 from core.constants import PRICE_USD_PER_MTOK_IN, PRICE_USD_PER_MTOK_OUT
 from core.services.family_service import get_admins
@@ -56,7 +57,7 @@ async def cmd_admin(message: Message, db_session: AsyncSession) -> None:
         if f["sub_until"]:
             line += f" · подписка до {f['sub_until']:%d.%m.%Y}"
         lines.append(line)
-    await message.answer("\n".join(lines))
+    await answer_long(message, "\n".join(lines))
 
 
 def _parse_grant_args(message: Message) -> tuple[int, int] | None:
