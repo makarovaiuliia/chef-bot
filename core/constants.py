@@ -23,3 +23,7 @@ LLM_WAIT_HINTS = {
 
 # Лимит длины сообщения Telegram (sendMessage/editMessageText).
 TELEGRAM_MESSAGE_LIMIT = 4096
+
+# За сколько дней предупредить семью об истечении подписки (плюс уведомление
+# в последний день). Истекшая подписка раньше молча возвращала триал-лимиты.
+SUB_EXPIRY_WARN_DAYS = 3

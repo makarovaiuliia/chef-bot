@@ -23,7 +23,7 @@ from config import get_settings
 from core import repositories
 from core.db import Family
 from core.repositories import count_llm_operations, get_family_members
-from core.services import digest, reminders
+from core.services import digest, reminders, subscription
 from core.services.family_service import get_admins
 from core.services.limits import subscription_active
 
@@ -94,6 +94,34 @@ async def _send_plan_reminder(
             )
 
 
+async def _send_subscription_notice(
+    bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
+) -> None:
+    """Предупредить админов и оператора об истечении подписки.
+
+    Идет мимо digest_enabled: это не дайджест, а платежное уведомление —
+    выключенные утренние сводки не должны его гасить.
+    """
+    family_text = subscription.expiry_notice(family, today)
+    if family_text is None:
+        return
+    async with sessionmaker() as session:
+        admins = await get_admins(session, family_id=family.id)
+    for admin in admins:
+        try:
+            await bot.send_message(admin.telegram_user_id, family_text)
+        except Exception:
+            logger.warning(
+                "scheduler: sub notice failed admin_id={}", admin.telegram_user_id
+            )
+    operator_text = subscription.operator_notice(family, today)
+    for operator_id in get_settings().superadmin_ids:
+        try:
+            await bot.send_message(operator_id, operator_text)
+        except Exception:
+            logger.warning("scheduler: sub notice failed operator_id={}", operator_id)
+
+
 async def _process_due_family(
     bot: Bot, sessionmaker: async_sessionmaker, family, today: DateType
 ) -> None:
@@ -101,6 +129,7 @@ async def _process_due_family(
     if family.digest_enabled:
         await _send_family_digest(bot, sessionmaker, family, today)
     await _send_plan_reminder(bot, sessionmaker, family, today)
+    await _send_subscription_notice(bot, sessionmaker, family, today)
 
 
 async def _tick_family(

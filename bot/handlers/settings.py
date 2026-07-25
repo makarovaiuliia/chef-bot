@@ -16,7 +16,12 @@ from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main, kb_settings, 
 from core import emoji
 from core.db import Family, FamilyMember
 from core.exceptions import LimitExceeded, LLMError
-from core.services.family_service import change_family_timezone, is_admin, update_digest_settings
+from core.services import subscription
+from core.services.family_service import (
+    change_family_timezone,
+    is_admin,
+    update_digest_settings,
+)
 from core.services.limits import denial_text, subscription_active
 
 router = Router()
@@ -26,10 +31,12 @@ router.callback_query.filter(HasFamily())
 
 def _settings_text(family: Family) -> str:
     state = "включен" if family.digest_enabled else "выключен"
+    today = datetime.now(ZoneInfo(family.timezone or "UTC")).date()
     return (
         f"{emoji.PROFILE} Настройки семьи\n\n"
         f"Утренний дайджест: {state}, в {family.digest_hour}:00\n"
-        f"Часовой пояс: {family.timezone}"
+        f"Часовой пояс: {family.timezone}\n"
+        f"{subscription.status_line(family, today)}"
     )
 
 
