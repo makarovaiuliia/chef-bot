@@ -79,14 +79,23 @@ def describe_update(update: Update | None) -> str:
 
 
 async def _apologize(update: Update | None, bot: Bot) -> None:
-    """Сказать юзеру, что сломалось, и снять спиннер на кнопке."""
+    """Сказать юзеру, что сломалось, и снять спиннер на кнопке.
+
+    Извинение идет ПЕРЕД снятием спиннера, а снятие завернуто отдельно: долгие
+    хендлеры (генерация меню, подбор замены) отвечают на callback заранее, и
+    повторный answer получает 400 «query is too old». Раньше это исключение
+    уносило с собой и само извинение — юзер не узнавал вообще ничего.
+    """
     if update is None:
         return
     callback = getattr(update, "callback_query", None)
     if callback is not None:
-        await callback.answer()
         if callback.message is not None:
             await bot.send_message(callback.message.chat.id, USER_MESSAGE)
+        try:
+            await callback.answer()
+        except TelegramBadRequest as e:
+            logger.info("errors: спиннер уже снят хендлером: {}", e)
         return
     message = getattr(update, "message", None)
     if message is not None:

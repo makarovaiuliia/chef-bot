@@ -111,6 +111,28 @@ async def test_callback_error_stops_spinner(superadmin):
     assert "plan:days:3" in bot.send_message.await_args_list[1].args[1]
 
 
+async def test_apology_survives_already_answered_callback(superadmin):
+    """Хендлеры генерации отвечают на callback ДО долгой работы (снимают
+    спиннер). Если после этого что-то падает, повторный answer из _apologize
+    получает от Telegram 400 — и раньше уносил с собой извинение юзеру:
+    человек оставался перед плейсхолдером, как в баге 2026-07-27."""
+    bot = AsyncMock()
+    cb = _callback_update(data="plan:days:7").callback_query
+    cb.answer.side_effect = _bad_request(
+        "query is too old and response timeout expired or query ID is invalid"
+    )
+    event = SimpleNamespace(
+        exception=RuntimeError("бум"),
+        update=SimpleNamespace(message=None, callback_query=cb),
+    )
+
+    await errors.on_error(event, bot)
+
+    targets = [call.args[0] for call in bot.send_message.await_args_list]
+    assert 555 in targets, "юзер не получил извинение и остался перед плейсхолдером"
+    assert 999 in targets, "оператор не получил алерт"
+
+
 async def test_second_same_error_is_throttled(superadmin):
     bot = AsyncMock()
     event = SimpleNamespace(exception=ValueError("бум"), update=_message_update())

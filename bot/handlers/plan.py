@@ -30,7 +30,7 @@ from bot.keyboards import (
     kb_shoplist_offer,
     kb_want_subscription,
 )
-from bot.replies import answer_long, edit_long
+from bot.replies import answer_long, edit_long, replace_placeholder
 from core import emoji, repositories
 from core.db import Family, FamilyMember, Menu, MenuStatus
 from core.exceptions import FamilyBusy, LimitExceeded, LLMError, MealNotFound
@@ -171,8 +171,9 @@ async def _generate_and_show(
     start = DateType.fromisoformat(data["start_date"])
     days = data["days"]
     # kb_main на плейсхолдере возвращает постоянную клавиатуру, вытесненную
-    # ForceReply кастомной даты (reply-клавиатура — уровень чата; последующий
-    # edit_text вешает inline-разметку на само сообщение, не конфликтуя).
+    # ForceReply кастомной даты. Цена: сообщение с reply-разметкой Telegram
+    # редактировать не дает, поэтому результат приходит через
+    # replace_placeholder (удалить + ответить), а не edit_text.
     placeholder = await message.answer(
         wait_text(emoji.WAIT, "Готовлю меню", "menu_gen"), reply_markup=kb_main()
     )
@@ -183,19 +184,20 @@ async def _generate_and_show(
     except LimitExceeded as e:
         await state.clear()
         markup = None if limits.subscription_active(family) else kb_want_subscription()
-        await placeholder.edit_text(denial_text(e), reply_markup=markup)
+        await replace_placeholder(placeholder, denial_text(e), reply_markup=markup)
         return
     except LLMError:  # LLMInvalidResponse — подкласс; авто-retry уже был внутри
         logger.exception("plan: menu generation failed family_id={}", family.id)
         await state.set_state(PlanFlow.duration)
-        await placeholder.edit_text(
+        await replace_placeholder(
+            placeholder,
             "Не получилось сгенерировать меню.",
             reply_markup=kb_retry(f"plan:days:{days}"),
         )
         return
     await state.update_data(menu_id=menu.id)
     await state.set_state(PlanFlow.draft)
-    await placeholder.edit_text(_format_draft(menu), reply_markup=kb_plan_draft())
+    await replace_placeholder(placeholder, _format_draft(menu), reply_markup=kb_plan_draft())
     await _notify_admins(
         message, db_session, family, family_member,
         f"{emoji.MENU} {_actor_name(family_member)} сгенерировал(а) черновик меню "
@@ -300,7 +302,8 @@ async def _suggest_and_show(
     if meal is None:
         await message.answer("Блюдо не найдено — начните заново: /plan")
         return
-    # см. _generate_and_show: возвращаем клавиатуру, вытесненную ForceReply «пожелания».
+    # см. _generate_and_show: возвращаем клавиатуру, вытесненную ForceReply
+    # «пожелания», и по той же причине заменяем плейсхолдер, а не правим его.
     placeholder = await message.answer(
         wait_text(emoji.WAIT, "Подбираю варианты", "replace"), reply_markup=kb_main()
     )
@@ -315,11 +318,13 @@ async def _suggest_and_show(
     except LimitExceeded as e:
         await state.clear()
         markup = None if limits.subscription_active(family) else kb_want_subscription()
-        await placeholder.edit_text(denial_text(e), reply_markup=markup)
+        await replace_placeholder(placeholder, denial_text(e), reply_markup=markup)
         return
     except LLMError:
         logger.exception("plan: suggest replacements failed meal_id={}", meal_id)
-        await placeholder.edit_text("Не получилось подобрать замену. Выберите блюдо еще раз.")
+        await replace_placeholder(
+            placeholder, "Не получилось подобрать замену. Выберите блюдо еще раз."
+        )
         await state.set_state(PlanFlow.replace_pick)
         return
     await state.update_data(alternatives=[o.model_dump(mode="json") for o in options])
@@ -327,7 +332,9 @@ async def _suggest_and_show(
     lines = [f"Замена для «{meal.dish_name}» ({slot_label(meal.slot)}):", ""]
     for i, o in enumerate(options, 1):
         lines.append(f"<b>{i}.</b> {format_dish_with_sides(o.dish_name, o.side_dishes)}")
-    await placeholder.edit_text("\n".join(lines), reply_markup=kb_plan_alternatives(len(options)))
+    await replace_placeholder(
+        placeholder, "\n".join(lines), reply_markup=kb_plan_alternatives(len(options))
+    )
 
 
 @router.callback_query(PlanFlow.replace_alts, F.data.startswith("plan:alt:"))
