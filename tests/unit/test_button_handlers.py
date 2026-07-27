@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock
 
 from aiogram import F
 
-from bot.handlers import family, menu, profile, shopping
-from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY
+from bot.handlers import family, menu, plan, profile, shopping
+from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_LIST, BTN_PLAN, BTN_TODAY, MAIN_BUTTONS
 
 
 def _magic_repr(magic) -> str:
@@ -53,12 +53,23 @@ def test_btn_today_bound_to_cmd_today():
 
 
 def test_btn_family_bound_to_both_family_views():
+    """Кнопка снята с клавиатуры, но у юзеров висит закэшированная разметка —
+    хэндлер обязан остаться, иначе тап утечет в ИИ-чат."""
     assert _has_text_binding(family.router, "cmd_family", BTN_FAMILY)
     assert _has_text_binding(family.router, "cmd_family_member_view", BTN_FAMILY)
 
 
 def test_btn_add_bound():
     assert _has_text_binding(shopping.router, "btn_add", BTN_ADD)
+
+
+def test_btn_list_bound_to_cmd_list():
+    assert _has_text_binding(shopping.router, "cmd_list", BTN_LIST)
+
+
+def test_btn_plan_bound_to_both_plan_branches():
+    assert _has_text_binding(plan.router, "cmd_plan", BTN_PLAN)
+    assert _has_text_binding(plan.router, "cmd_plan_denied", BTN_PLAN)
 
 
 async def test_btn_add_asks_what_to_add():
@@ -109,7 +120,7 @@ def test_profile_waiting_text_handler_excludes_keyboard_buttons():
     """Тап по кнопке клавиатуры во время редактирования профиля не должен
     матчиться хэндлером on_new_text (иначе он затрет profile_md текстом кнопки).
     """
-    exclusion = _magic_repr(~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}))
+    exclusion = _magic_repr(~F.text.in_(MAIN_BUTTONS))
     reprs_by_handler = _registered_filters(profile.router)
     on_new_text_filters = next(
         filters for name, filters in reprs_by_handler if name == "on_new_text"
@@ -127,5 +138,5 @@ def test_button_routers_registered_before_freetext(dispatcher):
     sub_routers = list(dispatcher.sub_routers)
 
     freetext_index = sub_routers.index(freetext.router)
-    for button_router in (menu.router, shopping.router, family.router):
+    for button_router in (menu.router, shopping.router, family.router, plan.router):
         assert sub_routers.index(button_router) < freetext_index

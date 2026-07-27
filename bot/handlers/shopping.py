@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.filters import HasFamily
 from bot.formatting import md_to_telegram_html
-from bot.keyboards import BTN_ADD, kb_main, kb_shop_clear_confirm, kb_shopping_list
+from bot.keyboards import BTN_ADD, BTN_LIST, kb_main, kb_shop_clear_confirm, kb_shopping_list
 from core import emoji, repositories
 from core.db import Family, FamilyMember
 from core.services import shopping_list
@@ -98,6 +98,7 @@ async def handle_add_reply(
 
 
 @router.message(Command("list"))
+@router.message(F.text == BTN_LIST)
 async def cmd_list(
     message: Message, family: Family, db_session: AsyncSession
 ) -> None:

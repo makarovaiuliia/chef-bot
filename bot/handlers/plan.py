@@ -16,9 +16,8 @@ from bot.formatting import wait_text
 from bot.fsm import PlanFlow
 from bot.inflight import BUSY_ALERT, llm_slot
 from bot.keyboards import (
-    BTN_ADD,
-    BTN_FAMILY,
-    BTN_TODAY,
+    BTN_PLAN,
+    MAIN_BUTTONS,
     kb_main,
     kb_plan_alternatives,
     kb_plan_approve_confirm,
@@ -62,6 +61,7 @@ async def _start_plan_flow(message: Message, state: FSMContext, db_session: Asyn
 
 
 @router.message(Command("plan"), IsAdmin())
+@router.message(F.text == BTN_PLAN, IsAdmin())
 async def cmd_plan(
     message: Message, state: FSMContext, family: Family, db_session: AsyncSession
 ) -> None:
@@ -69,6 +69,7 @@ async def cmd_plan(
 
 
 @router.message(Command("plan"))
+@router.message(F.text == BTN_PLAN)
 async def cmd_plan_denied(message: Message, db_session: AsyncSession, family: Family) -> None:
     admins = await get_admins(db_session, family_id=family.id)
     names = ", ".join(_actor_name(a) for a in admins) or "администратор"
@@ -102,7 +103,7 @@ async def on_start_date(cb: CallbackQuery, state: FSMContext, family: Family) ->
 @router.message(
     PlanFlow.custom_date,
     F.text,
-    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.in_(MAIN_BUTTONS),
     ~F.text.startswith("/"),
 )
 async def on_custom_date(message: Message, state: FSMContext, family: Family) -> None:
@@ -272,7 +273,7 @@ async def on_pick_meal(
 @router.message(
     PlanFlow.replace_hint,
     F.text,
-    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.in_(MAIN_BUTTONS),
     ~F.text.startswith("/"),
 )
 async def on_replace_hint(

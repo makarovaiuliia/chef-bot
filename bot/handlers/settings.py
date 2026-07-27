@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.filters import HasFamily, IsAdmin
 from bot.formatting import wait_text
 from bot.fsm import SettingsFlow
-from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main, kb_settings, kb_want_subscription
+from bot.keyboards import MAIN_BUTTONS, kb_main, kb_settings, kb_want_subscription
 from core import emoji
 from core.db import Family, FamilyMember
 from core.exceptions import LimitExceeded, LLMError
@@ -94,7 +94,7 @@ async def on_tz_button(cb: CallbackQuery, state: FSMContext) -> None:
 @router.message(
     SettingsFlow.tz_city,
     F.text,
-    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.in_(MAIN_BUTTONS),
     ~F.text.startswith("/"),
     IsAdmin(),
 )

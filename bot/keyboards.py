@@ -9,10 +9,18 @@ from core import emoji
 from core.meal_format import slot_label
 
 # Постоянная reply-клавиатура с основными действиями.
-# Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, family).
+# Тексты — контракт: на них матчатся message-хэндлеры (menu, shopping, plan, family).
 BTN_ADD = f"{emoji.ADD} Добавить"
 BTN_TODAY = f"{emoji.COOK} Сегодня"
+BTN_LIST = f"{emoji.SHOPPING} Список покупок"
+BTN_PLAN = f"{emoji.MENU} Запланировать"
+# С клавиатуры убрана, но Telegram держит старую разметку у юзера до следующего
+# kb_main — хэндлер на этот текст оставлен, чтобы тап по нему не утек в ИИ-чат.
 BTN_FAMILY = f"{emoji.FAMILY} Семья"
+
+# Все тексты кнопок: FSM-хэндлеры свободного ввода обязаны их исключать,
+# иначе тап по кнопке во время ForceReply-шага запишется как ответ.
+MAIN_BUTTONS = {BTN_ADD, BTN_TODAY, BTN_LIST, BTN_PLAN, BTN_FAMILY}
 
 
 def kb_main() -> ReplyKeyboardMarkup:
@@ -21,8 +29,9 @@ def kb_main() -> ReplyKeyboardMarkup:
             [
                 KeyboardButton(text=BTN_ADD),
                 KeyboardButton(text=BTN_TODAY),
-                KeyboardButton(text=BTN_FAMILY),
-            ]
+                KeyboardButton(text=BTN_LIST),
+            ],
+            [KeyboardButton(text=BTN_PLAN)],
         ],
         resize_keyboard=True,
         is_persistent=True,

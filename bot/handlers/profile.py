@@ -9,7 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.filters import HasFamily, IsAdmin
 from bot.formatting import md_to_telegram_html
 from bot.fsm import ProfileEdit
-from bot.keyboards import BTN_ADD, BTN_FAMILY, BTN_TODAY, kb_main
+from bot.keyboards import MAIN_BUTTONS, kb_main
 from core import emoji
 from core.services.family_service import get_admins, is_admin, update_profile
 
@@ -58,7 +58,7 @@ async def on_edit_denied(cb: CallbackQuery, db_session, family) -> None:
 @router.message(
     ProfileEdit.waiting_text,
     F.text,
-    ~F.text.in_({BTN_ADD, BTN_TODAY, BTN_FAMILY}),
+    ~F.text.in_(MAIN_BUTTONS),
     ~F.text.startswith("/"),
     IsAdmin(),
 )
