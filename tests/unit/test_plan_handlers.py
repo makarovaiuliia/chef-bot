@@ -3,7 +3,11 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+from aiogram.exceptions import TelegramBadRequest
+
 from bot.handlers import plan as plan_handler
+from core.db import MealSlot
 from core.exceptions import LLMInvalidResponse, MealNotFound
 
 
@@ -12,6 +16,37 @@ def _family(**kw):
         id=1, timezone="UTC", plan_slots=["lunch", "dinner"], profile_md="п",
         sub_until=None, **kw
     )
+
+
+def _menu(days=3, start=date(2026, 7, 27)):
+    meals = []
+    for i in range(days):
+        day = date.fromordinal(start.toordinal() + i)
+        for slot in (MealSlot.lunch, MealSlot.dinner):
+            meals.append(
+                SimpleNamespace(
+                    date=day, slot=slot, dish_name=f"Блюдо {i}-{slot.value}",
+                    side_dishes=["рис"],
+                )
+            )
+    return SimpleNamespace(id=7, days_count=days, start_date=start, meals=meals)
+
+
+def _cannot_be_edited():
+    return TelegramBadRequest(
+        method=SimpleNamespace(), message="Bad Request: message can't be edited"
+    )
+
+
+def _last_reply(placeholder):
+    """Последнее сообщение, которым заменили плейсхолдер: (текст, kwargs).
+
+    Плейсхолдеры с kb_main не редактируются (Telegram запрещает) — результат
+    приходит новым сообщением через replace_placeholder.
+    """
+    calls = [c for c in placeholder.answer.await_args_list if c.args]
+    assert calls, "юзеру ничего не отправили вместо плейсхолдера"
+    return calls[-1].args[0], calls[-1].kwargs
 
 
 def _admin_member(**kw):
@@ -29,9 +64,8 @@ async def test_generation_failure_shows_retry(monkeypatch):
 
     await plan_handler._generate_and_show(message, state, _family(), member, db_session=None)
 
-    placeholder = message.answer.return_value
-    placeholder.edit_text.assert_awaited_once()
-    assert "Не получилось" in placeholder.edit_text.await_args.args[0]
+    text, _ = _last_reply(message.answer.return_value)
+    assert "Не получилось" in text
 
 
 async def test_generation_trial_denial_shows_polite_text(monkeypatch):
@@ -47,10 +81,9 @@ async def test_generation_trial_denial_shows_polite_text(monkeypatch):
 
     await plan_handler._generate_and_show(message, state, _family(), member, db_session=None)
 
-    placeholder = message.answer.return_value
-    text = placeholder.edit_text.await_args.args[0]
+    text, kwargs = _last_reply(message.answer.return_value)
     assert "лимит" in text.lower() and "подписка" in text.lower()
-    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
+    assert kwargs.get("reply_markup") is not None
     state.clear.assert_awaited_once()
 
 
@@ -71,10 +104,9 @@ async def test_suggest_trial_denial_shows_polite_text_with_button(monkeypatch):
 
     await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint=None)
 
-    placeholder = message.answer.return_value
-    text = placeholder.edit_text.await_args.args[0]
+    text, kwargs = _last_reply(message.answer.return_value)
     assert "лимит" in text.lower() and "подписка" in text.lower()
-    assert placeholder.edit_text.await_args.kwargs.get("reply_markup") is not None
+    assert kwargs.get("reply_markup") is not None
     state.clear.assert_awaited_once()
 
 
@@ -115,6 +147,115 @@ async def test_suggest_placeholder_restores_main_keyboard(monkeypatch):
     await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint="рыба")
 
     assert message.answer.await_args.kwargs["reply_markup"] == kb_main()
+
+
+async def test_draft_reaches_user_when_placeholder_cannot_be_edited(monkeypatch):
+    """Регресс 2026-07-27: меню генерилось, но плейсхолдер нес reply-клавиатуру,
+    и Telegram отвечал «message can't be edited». Ошибка считалась безобидной —
+    юзер вечно сидел перед «Готовлю меню...», а меню откатывалось вместе с
+    транзакцией. Черновик обязан дойти, как бы ни повел себя edit_text."""
+    monkeypatch.setattr(
+        plan_handler.menu_planner, "generate_menu", AsyncMock(return_value=_menu())
+    )
+    monkeypatch.setattr(plan_handler, "get_admins", AsyncMock(return_value=[]))
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"start_date": "2026-07-27", "days": 3}
+    placeholder = message.answer.return_value
+    placeholder.edit_text.side_effect = _cannot_be_edited()
+
+    await plan_handler._generate_and_show(
+        message, state, _family(), _admin_member(), db_session=None
+    )
+
+    delivered = " ".join(
+        str(call.args[0]) for call in placeholder.answer.await_args_list if call.args
+    )
+    assert "Черновик меню" in delivered, "черновик не доставлен юзеру"
+
+
+async def test_generate_placeholder_is_never_edited(monkeypatch):
+    """Инвариант: сообщение с reply-клавиатурой нельзя редактировать, значит
+    плейсхолдер заменяем новым сообщением, а не edit_text."""
+    monkeypatch.setattr(
+        plan_handler.menu_planner, "generate_menu", AsyncMock(return_value=_menu())
+    )
+    monkeypatch.setattr(plan_handler, "get_admins", AsyncMock(return_value=[]))
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"start_date": "2026-07-27", "days": 3}
+
+    await plan_handler._generate_and_show(
+        message, state, _family(), _admin_member(), db_session=None
+    )
+
+    message.answer.return_value.edit_text.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "failure, expected",
+    [
+        (LLMInvalidResponse("bad json"), "Не получилось"),
+        ("trial", "лимит"),
+    ],
+)
+async def test_generation_errors_reach_user_without_editing(monkeypatch, failure, expected):
+    """Ветки ошибок писали в тот же нередактируемый плейсхолдер — отказ по
+    лимиту и сообщение о сбое пропадали так же молча, как и сам черновик."""
+    from core.exceptions import TrialLimitExceeded
+
+    exc = TrialLimitExceeded("menu_gen") if failure == "trial" else failure
+
+    async def boom(*a, **kw):
+        raise exc
+
+    monkeypatch.setattr(plan_handler.menu_planner, "generate_menu", boom)
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"start_date": "2026-07-27", "days": 3}
+    placeholder = message.answer.return_value
+    placeholder.edit_text.side_effect = _cannot_be_edited()
+
+    await plan_handler._generate_and_show(
+        message, state, _family(), _admin_member(), db_session=None
+    )
+
+    delivered = " ".join(
+        str(call.args[0]) for call in placeholder.answer.await_args_list if call.args
+    )
+    assert expected.lower() in delivered.lower()
+
+
+async def test_alternatives_reach_user_when_placeholder_cannot_be_edited(monkeypatch):
+    """Тот же дефект во флоу замены блюда: плейсхолдер подбора тоже нес kb_main."""
+    monkeypatch.setattr(
+        plan_handler,
+        "suggest_replacements",
+        AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    dish_name="Треска",
+                    side_dishes=["рис"],
+                    model_dump=lambda mode="json": {"dish_name": "Треска"},
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        plan_handler.repositories,
+        "get_meal_for_family",
+        AsyncMock(return_value=SimpleNamespace(dish_name="Рыба", slot=MealSlot.dinner)),
+    )
+    message, state = AsyncMock(), AsyncMock()
+    state.get_data.return_value = {"replace_meal_id": 1}
+    placeholder = message.answer.return_value
+    placeholder.edit_text.side_effect = _cannot_be_edited()
+
+    await plan_handler._suggest_and_show(
+        message, state, _family(), db_session=None, hint=None
+    )
+
+    delivered = " ".join(
+        str(call.args[0]) for call in placeholder.answer.await_args_list if call.args
+    )
+    assert "Треска" in delivered
 
 
 async def test_custom_date_rejects_garbage():
@@ -202,9 +343,8 @@ async def test_suggest_llm_error_returns_to_pick(monkeypatch):
 
     await plan_handler._suggest_and_show(message, state, _family(), db_session=None, hint=None)
 
-    placeholder = message.answer.return_value
-    placeholder.edit_text.assert_awaited_once()
-    assert "Не получилось" in placeholder.edit_text.await_args.args[0]
+    text, _ = _last_reply(message.answer.return_value)
+    assert "Не получилось" in text
     state.set_state.assert_awaited_with(plan_handler.PlanFlow.replace_pick)
 
 

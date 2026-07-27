@@ -5,7 +5,9 @@
 текстом, длинное меню и список семей в /admin. Без разбиения Telegram
 отвечает 400 и юзер не получает ничего.
 """
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
+from loguru import logger
 
 from bot.formatting import split_for_telegram
 
@@ -22,6 +24,26 @@ async def answer_long(message: Message, text: str, **kwargs) -> Message | None:
         extra = kwargs if index == len(chunks) else {}
         sent = await message.answer(chunk, **extra)
     return sent
+
+
+async def replace_placeholder(placeholder: Message, text: str, **kwargs) -> Message | None:
+    """Заменить сообщение-ожидание результатом, удалив его и ответив заново.
+
+    Плейсхолдер генерации несет постоянную reply-клавиатуру (kb_main), которую
+    вытеснил ForceReply. Такое сообщение Telegram редактировать отказывается:
+    editMessageText отдает 400 «message can't be edited». Ошибка попадала в
+    benign-ветку глобального обработчика — ни юзеру, ни оператору, — и человек
+    вечно смотрел на «Готовлю меню...», хотя меню было сгенерировано и оплачено.
+
+    Удаление плейсхолдера не снимает reply-клавиатуру: она уровня чата, а не
+    сообщения. Не удалилось (сообщение старше 48 часов) — не беда, результат
+    все равно уходит новым сообщением: молчание здесь хуже лишней строки.
+    """
+    try:
+        await placeholder.delete()
+    except TelegramBadRequest as e:
+        logger.info("replies: не удалось убрать плейсхолдер: {}", e)
+    return await answer_long(placeholder, text, **kwargs)
 
 
 async def edit_long(message: Message, text: str, **kwargs) -> None:
